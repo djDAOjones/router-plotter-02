@@ -1,170 +1,166 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Route Plotter - Interactive Map Animation Tool</title>
-    <link rel="stylesheet" href="styles.css">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Route Plotter v3</title>
+  <link rel="stylesheet" href="styles/main.css">
 </head>
 <body>
-    <div class="container">
-        <!-- Header -->
-        <header>
-            <div class="header-left"></div>
-            <div class="header-center">
-                <h1>Route Plotter</h1>
-            </div>
-            <div class="header-right"></div>
-        </header>
+  <!-- Application Container -->
+  <div id="app">
+    <!-- Header -->
+    <header class="header">
+      <h1 class="header-title">Route Plotter v3</h1>
+      <div class="header-controls">
+        <button id="help-btn" class="btn btn-secondary">Help</button>
+        <button id="clear-btn" class="btn btn-secondary">Clear</button>
+      </div>
+    </header>
 
-        <main>
-            <!-- Image Display Area (also upload area) -->
-            <div class="image-container">
-                <input type="file" id="imageUpload" accept="image/*" class="file-input">
-                <div id="canvasWrapper" class="drop-zone">
-                    <canvas id="mapCanvas"></canvas>
-                    <div id="placeholder" class="placeholder">
-                        <div class="placeholder-content">
-                            <svg width="80" height="80" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                                <polyline points="7 10 12 15 17 10"></polyline>
-                                <line x1="12" y1="15" x2="12" y2="3"></line>
-                            </svg>
-                            <p>Click to upload or drag & drop an image</p>
-                            <p class="placeholder-hint">JPG, PNG, GIF supported</p>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Playback Controls Row -->
-            <div class="controls-row playback-row">
-                <button id="playPauseBtn" class="btn btn-play" disabled>
-                    <span id="playPauseIcon">▶️</span> <span id="playPauseText">Play</span>
-                </button>
-                <button id="resetBtn" class="btn btn-reset" disabled>🔄 Reset</button>
-                <button id="togglePauseMode" class="btn btn-toggle" disabled>
-                    <span id="pauseModeText">Pause at Waypoints</span>
-                </button>
-                <div class="control-group-inline">
-                    <label for="pauseDuration">Pause (s):</label>
-                    <input type="number" id="pauseDuration" min="0" max="10" value="2" step="1">
-                </div>
-                <div class="control-group-inline speed-control">
-                    <label for="speedSlider">Speed:</label>
-                    <input type="range" id="speedSlider" min="0" max="4" value="2" step="1" list="speedMarkers">
-                    <datalist id="speedMarkers">
-                        <option value="0" label="0.25x"></option>
-                        <option value="1" label="0.5x"></option>
-                        <option value="2" label="1x"></option>
-                        <option value="3" label="2x"></option>
-                        <option value="4" label="4x"></option>
-                    </datalist>
-                    <span id="speedDisplay">1x</span>
-                </div>
-                <button id="toggleNamesVisibility" class="btn btn-toggle" disabled>
-                    <span id="namesVisibilityText">Names: Always</span>
-                </button>
-                <button id="toggleBeacons" class="btn btn-toggle" disabled>
-                    <span id="beaconsText">Beacons: Off</span>
-                </button>
-                <button id="toggleSmoothing" class="btn btn-toggle" disabled>
-                    <span id="smoothingText">Smoothing: Off</span>
-                </button>
-            </div>
-
-            <!-- Design Controls Row -->
-            <div class="controls-row design-row">
-                <button id="clearBtn" class="btn btn-danger" disabled>🗑️ Clear</button>
-                <button id="undoBtn" class="btn btn-secondary" disabled>↩️ Undo</button>
-                <button id="newWaypointBtn" class="btn btn-primary" disabled>📍 New Waypoint</button>
-                <div class="control-group-inline">
-                    <label for="lineColor">Color:</label>
-                    <input type="color" id="lineColor" value="#FF6B6B">
-                </div>
-                <div class="control-group-inline">
-                    <label for="lineThickness">Thickness:</label>
-                    <input type="range" id="lineThickness" min="1" max="20" value="5">
-                    <span id="thicknessValue">5</span>px
-                </div>
-            </div>
-
-            <!-- Save/Load/Export Row -->
-            <div class="controls-row export-row">
-                <button id="saveLocalBtn" class="btn btn-save" disabled>💾 Save Locally</button>
-                <button id="manageSavesBtn" class="btn btn-load">📂 Manage Saves</button>
-                <button id="exportJSONBtn" class="btn btn-secondary" disabled>📤 Export JSON</button>
-                <button id="importJSONBtn" class="btn btn-secondary">📥 Import JSON</button>
-                <input type="file" id="importFile" accept=".json" class="file-input">
-                <button id="exportBtn" class="btn btn-export" disabled>🎥 Export Video</button>
-                <div class="demo-buttons">
-                    <button id="demo1Btn" class="btn btn-demo">Demo 1</button>
-                    <button id="demo2Btn" class="btn btn-demo">Demo 2</button>
-                    <button id="demo3Btn" class="btn btn-demo">Demo 3</button>
-                </div>
-            </div>
-
-            <!-- Waypoint List (Collapsible) -->
-            <div class="waypoint-section">
-                <div class="waypoint-header" id="waypointHeader">
-                    <h3>Waypoints (<span id="waypointCount">0</span>)</h3>
-                    <button id="toggleWaypoints" class="btn-toggle-list">▼ Show</button>
-                </div>
-                <div id="waypointList" class="waypoint-list hidden"></div>
-            </div>
-        </main>
-
-        <!-- Waypoint Name Modal -->
-        <div id="waypointModal" class="modal">
-            <div class="modal-content">
-                <h3>Name this Waypoint</h3>
-                <input type="text" id="waypointNameInput" placeholder="Enter waypoint name">
-                <div class="modal-buttons">
-                    <button id="saveWaypointName" class="btn btn-success">Save</button>
-                    <button id="cancelWaypoint" class="btn btn-secondary">Cancel</button>
-                </div>
-            </div>
+    <!-- Main Content -->
+    <main class="main">
+      <!-- Sidebar Controls -->
+      <aside class="sidebar">
+        <div class="control-group">
+          <h3>Animation</h3>
+          <label>
+            <span>Mode</span>
+            <select id="animation-mode">
+              <option value="constant-speed" selected>Constant Speed</option>
+              <option value="constant-time">Constant Time</option>
+            </select>
+          </label>
+          <label id="speed-control">
+            <span>Speed</span>
+            <input type="range" id="animation-speed" min="50" max="500" value="200" step="10">
+            <span id="animation-speed-value">200</span>
+          </label>
+          <label id="duration-control" style="display:none">
+            <span>Duration</span>
+            <input type="range" id="animation-duration" min="1" max="20" value="5" step="0.5">
+            <span id="animation-duration-value">5s</span>
+          </label>
         </div>
 
-        <!-- Initial Waypoint Modal -->
-        <div id="initialModal" class="modal active">
-            <div class="modal-content">
-                <h3>Welcome to Route Plotter</h3>
-                <p>Name your first waypoint to begin:</p>
-                <input type="text" id="initialWaypointInput" placeholder="e.g., Start" value="Start">
-                <div class="modal-buttons">
-                    <button id="startApp" class="btn btn-success">Start</button>
-                </div>
-            </div>
+        <div class="control-group">
+          <h3>Path Style</h3>
+          <label>
+            <span>Color</span>
+            <input type="color" id="path-color" value="#FF6B6B">
+          </label>
+          <label>
+            <span>Thickness</span>
+            <input type="range" id="path-thickness" min="1" max="10" value="3" step="0.5">
+            <span id="path-thickness-value">3</span>
+          </label>
+          <label>
+            <span>Tension</span>
+            <input type="range" id="path-tension" min="0" max="100" value="75" step="5">
+            <span id="path-tension-value">75%</span>
+          </label>
         </div>
+        
+        <div class="control-group">
+          <h3>Waypoints</h3>
+          <label>
+            <span>Size</span>
+            <input type="range" id="waypoint-size" min="4" max="16" value="8" step="1">
+            <span id="waypoint-size-value">8</span>
+          </label>
+          <div id="waypoint-list" class="waypoint-list"></div>
+          
+          <!-- Waypoint editing panel (shown when waypoint selected) -->
+          <div id="waypoint-editor" style="display:none; margin-top: 1rem; padding: 1rem; background: #fff; border-radius: 4px;">
+            <h4 style="margin: 0 0 0.5rem 0; font-size: 0.875rem;">Edit Waypoint</h4>
+            <label>
+              <span>Color</span>
+              <input type="color" id="segment-color" value="#FF6B6B">
+            </label>
+            <label>
+              <span>Width</span>
+              <input type="range" id="segment-width" min="1" max="10" value="3" step="0.5">
+              <span id="segment-width-value">3</span>
+            </label>
+            <label>
+              <span>Style</span>
+              <select id="segment-style">
+                <option value="solid">Solid</option>
+                <option value="dotted">Dotted</option>
+                <option value="dashed">Dashed</option>
+                <option value="squiggle">Squiggle</option>
+              </select>
+            </label>
+          </div>
+        </div>
+        
+        <div class="control-group">
+          <h3>Beacon</h3>
+          <label>
+            <span>Effect</span>
+            <select id="beacon-style">
+              <option value="none">None</option>
+              <option value="pulse" selected>Pulse</option>
+              <option value="ripple">Ripple</option>
+            </select>
+          </label>
+          <label>
+            <span>Color</span>
+            <input type="color" id="beacon-color" value="#FF6B6B">
+          </label>
+        </div>
+      </aside>
+      
+      <!-- Canvas for drawing -->
+      <canvas id="canvas"></canvas>
+      
+      <!-- Controls Panel -->
+      <div class="controls">
+        <div class="transport-controls">
+          <button id="skip-start-btn" class="btn btn-icon" title="Skip to Start">⏮</button>
+          <button id="play-btn" class="btn btn-icon btn-primary" title="Play">▶</button>
+          <button id="pause-btn" class="btn btn-icon btn-primary" style="display:none" title="Pause">⏸</button>
+          <button id="skip-end-btn" class="btn btn-icon" title="Skip to End">⏭</button>
+        </div>
+        
+        <div class="timeline">
+          <span id="current-time" class="time">0:00</span>
+          <input type="range" id="timeline-slider" class="timeline-slider" min="0" max="100" value="0" step="1">
+          <span id="total-time" class="time">0:00</span>
+        </div>
+      </div>
+    </main>
+  </div>
 
-        <!-- Save Manager Modal -->
-        <div id="saveManagerModal" class="modal">
-            <div class="modal-content modal-large">
-                <div class="modal-header">
-                    <h3>Manage Saves</h3>
-                    <button id="closeSaveManager" class="btn-close">&times;</button>
-                </div>
-                <div class="save-list" id="saveList">
-                    <p class="no-saves">No saved routes yet. Create a route and click "Save Locally" to get started.</p>
-                </div>
-            </div>
-        </div>
+  <!-- Splash Screen (Hidden by default) -->
+  <div id="splash" class="splash-screen" style="display: none;">
+    <div class="splash-content">
+      <h2>Welcome to Route Plotter v3</h2>
+      
+      <div class="instructions">
+        <h3>🖱️ Creating Waypoints</h3>
+        <ul>
+          <li><strong>Click</strong> to add a <strong>major waypoint</strong> (visible marker)</li>
+          <li><strong>Shift+Click</strong> to add a <strong>minor waypoint</strong> (invisible, for path shaping)</li>
+          <li>Need at least 2 waypoints to create a path</li>
+        </ul>
 
-        <!-- Save Name Modal -->
-        <div id="saveNameModal" class="modal">
-            <div class="modal-content">
-                <h3>Save Route</h3>
-                <p>Enter a name for this save:</p>
-                <input type="text" id="saveNameInput" placeholder="e.g., Campus Tour Route">
-                <div class="modal-buttons">
-                    <button id="confirmSaveName" class="btn btn-success">Save</button>
-                    <button id="cancelSaveName" class="btn btn-secondary">Cancel</button>
-                </div>
-            </div>
-        </div>
+        <h3>▶️ Animation Controls</h3>
+        <ul>
+          <li>Use the play button or spacebar to play/pause</li>
+          <li>Drag the timeline slider to scrub through animation</li>
+        </ul>
+      </div>
+
+      <button id="splash-close" class="btn btn-primary">Get Started</button>
+      
+      <label class="checkbox-label">
+        <input type="checkbox" id="splash-dont-show">
+        Don't show this again
+      </label>
     </div>
+  </div>
 
-    <script src="app.js"></script>
+  <script src="src/main.js" type="module"></script>
 </body>
 </html>

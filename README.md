@@ -1,6 +1,8 @@
-# Route Plotter - Interactive Map Animation Tool
+# Route Plotter v3
 
-A web-based tool for creating animated routes on images with waypoint management and export capabilities.
+A sophisticated route plotting and animation tool for creating smooth, animated paths with waypoints.
+
+🔗 **[Live Demo on GitHub Pages](https://djdaojones.github.io/router-plotter-02/)**
 
 ## Features
 
