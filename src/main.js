@@ -435,6 +435,9 @@ class RoutePlotter {
       segmentColor: this.styles.pathColor,
       segmentWidth: this.styles.pathThickness,
       segmentStyle: 'solid',
+      // Dot styling (majors visible)
+      dotColor: this.styles.pathColor,
+      dotSize: this.styles.waypointSize,
       // Per-waypoint beacon settings (majors only)
       beaconStyle: isMajor ? this.styles.beaconStyle : 'none',
       beaconColor: isMajor ? this.styles.beaconColor : this.styles.beaconColor
@@ -472,21 +475,110 @@ class RoutePlotter {
         item.classList.add('selected');
       }
       
-      item.innerHTML = `
-        <span class="waypoint-item-handle">☰</span>
-        <span class="waypoint-item-label">Waypoint ${index + 1}</span>
-        <button class="waypoint-item-delete">×</button>
-      `;
+      // Header row
+      const handle = document.createElement('span');
+      handle.className = 'waypoint-item-handle';
+      handle.textContent = '☰';
+      const label = document.createElement('span');
+      label.className = 'waypoint-item-label';
+      label.textContent = `Waypoint ${index + 1}`;
+      const delBtn = document.createElement('button');
+      delBtn.className = 'waypoint-item-delete';
+      delBtn.textContent = '×';
       
-      // Make item clickable for selection
-      item.addEventListener('click', () => {
+      item.appendChild(handle);
+      item.appendChild(label);
+      item.appendChild(delBtn);
+      
+      // Controls row
+      const controls = document.createElement('div');
+      controls.style.display = 'grid';
+      controls.style.gridTemplateColumns = 'auto auto auto auto';
+      controls.style.gap = '0.5rem';
+      controls.style.marginTop = '0.5rem';
+      
+      // Path color
+      const pathColor = document.createElement('input');
+      pathColor.type = 'color';
+      pathColor.value = waypoint.segmentColor;
+      pathColor.title = 'Path color';
+      pathColor.setAttribute('aria-label', `Path color for waypoint ${index + 1}`);
+      controls.appendChild(pathColor);
+      
+      // Path width
+      const pathWidth = document.createElement('input');
+      pathWidth.type = 'range';
+      pathWidth.min = '1';
+      pathWidth.max = '10';
+      pathWidth.step = '0.5';
+      pathWidth.value = waypoint.segmentWidth;
+      pathWidth.title = 'Path width';
+      pathWidth.setAttribute('aria-label', `Path width for waypoint ${index + 1}`);
+      controls.appendChild(pathWidth);
+      
+      // Dot color
+      const dotColor = document.createElement('input');
+      dotColor.type = 'color';
+      dotColor.value = waypoint.dotColor || waypoint.segmentColor;
+      dotColor.title = 'Dot color';
+      dotColor.setAttribute('aria-label', `Dot color for waypoint ${index + 1}`);
+      controls.appendChild(dotColor);
+      
+      // Dot size
+      const dotSize = document.createElement('input');
+      dotSize.type = 'range';
+      dotSize.min = '4';
+      dotSize.max = '16';
+      dotSize.step = '1';
+      dotSize.value = waypoint.dotSize || this.styles.waypointSize;
+      dotSize.title = 'Dot size';
+      dotSize.setAttribute('aria-label', `Dot size for waypoint ${index + 1}`);
+      controls.appendChild(dotSize);
+      
+      item.appendChild(controls);
+      
+      // Selection by clicking header bits
+      const selectWaypoint = (e) => {
+        e.stopPropagation();
         this.selectedWaypoint = waypoint;
         this.updateWaypointList();
         this.updateWaypointEditor();
+      };
+      label.addEventListener('click', selectWaypoint);
+      handle.addEventListener('click', selectWaypoint);
+      item.addEventListener('click', selectWaypoint);
+      
+      // Event handlers for controls
+      pathColor.addEventListener('input', (e) => {
+        e.stopPropagation();
+        waypoint.segmentColor = e.target.value;
+        this.calculatePath();
+        this.autoSave();
+      });
+      pathWidth.addEventListener('input', (e) => {
+        e.stopPropagation();
+        waypoint.segmentWidth = parseFloat(e.target.value);
+        this.calculatePath();
+        this.autoSave();
+      });
+      dotColor.addEventListener('input', (e) => {
+        e.stopPropagation();
+        waypoint.dotColor = e.target.value;
+        this.render();
+        this.autoSave();
+      });
+      dotSize.addEventListener('input', (e) => {
+        e.stopPropagation();
+        waypoint.dotSize = parseInt(e.target.value);
+        this.render();
+        this.autoSave();
       });
       
+      // Make item clickable for selection
+      // (Handled above)
+      
       // Delete button
-      item.querySelector('.waypoint-item-delete').addEventListener('click', (e) => {
+      delBtn.addEventListener('click', (e) => {
         e.stopPropagation();
         this.deleteWaypoint(waypoint);
       });
@@ -743,16 +835,20 @@ class RoutePlotter {
       for (let i = 1; i < pointsToRender; i++) {
         const segmentIndex = Math.min(Math.floor(i / pointsPerSegment), segments - 1);
         const controllerIdx = controllerForSegment[segmentIndex];
-        const controller = controllerIdx >= 0 ? this.waypoints[controllerIdx] : null;
+        const controller = controllerIdx >= 0 ? this.waypoints[controllerIdx] : {
+          segmentColor: this.styles.pathColor,
+          segmentWidth: this.styles.pathThickness,
+          segmentStyle: 'solid'
+        };
         
         // Set segment style
-        this.ctx.strokeStyle = controller ? controller.segmentColor : this.styles.pathColor;
-        this.ctx.lineWidth = controller ? controller.segmentWidth : this.styles.pathThickness;
+        this.ctx.strokeStyle = controller.segmentColor;
+        this.ctx.lineWidth = controller.segmentWidth;
         this.ctx.lineCap = 'round';
         this.ctx.lineJoin = 'round';
         
         // Apply line style
-        this.applyLineStyle(controller ? controller.segmentStyle : 'solid');
+        this.applyLineStyle(controller.segmentStyle);
         
         this.ctx.beginPath();
         this.ctx.moveTo(this.pathPoints[i - 1].x, this.pathPoints[i - 1].y);
@@ -788,11 +884,12 @@ class RoutePlotter {
       if (waypoint.isMajor) {
         // Highlight selected waypoint
         const isSelected = waypoint === this.selectedWaypoint;
-        const size = isSelected ? this.styles.waypointSize * 1.3 : this.styles.waypointSize;
+        const baseSize = waypoint.dotSize || this.styles.waypointSize;
+        const size = isSelected ? baseSize * 1.3 : baseSize;
         
         // Major waypoint - filled circle
         this.ctx.beginPath();
-        this.ctx.fillStyle = waypoint.segmentColor;
+        this.ctx.fillStyle = waypoint.dotColor || waypoint.segmentColor;
         this.ctx.strokeStyle = isSelected ? '#4a90e2' : 'white';
         this.ctx.lineWidth = isSelected ? 3 : 2;
         this.ctx.arc(waypoint.x, waypoint.y, size, 0, Math.PI * 2);
