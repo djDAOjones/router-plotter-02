@@ -7,11 +7,13 @@
   <link rel="stylesheet" href="styles/main.css">
 </head>
 <body>
+  <a class="skip-link" href="#main-content">Skip to main content</a>
+  <div id="announcer" class="sr-only" role="status" aria-live="polite" aria-atomic="true"></div>
   <!-- Application Container -->
   <div id="app">
     <!-- Header -->
-    <header class="header">
-      <h1 class="header-title">Route Plotter v3</h1>
+    <header class="header" role="banner">
+      <h1 id="app-title" class="header-title">Route Plotter v3</h1>
       <div class="header-controls">
         <button id="help-btn" class="btn btn-secondary">Help</button>
         <button id="clear-btn" class="btn btn-secondary">Clear</button>
@@ -19,9 +21,9 @@
     </header>
 
     <!-- Main Content -->
-    <main class="main">
+    <main class="main" id="main-content" role="main" aria-labelledby="app-title">
       <!-- Sidebar Controls -->
-      <aside class="sidebar">
+      <aside class="sidebar" role="complementary" aria-label="Controls panel">
         <div class="control-group">
           <h3>Animation</h3>
           <label>

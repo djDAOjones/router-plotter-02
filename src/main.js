@@ -138,6 +138,9 @@ class RoutePlotter {
       this.showSplash();
     }
     
+    // Load autosave if present
+    this.loadAutosave();
+    
     // Initial render
     this.render();
     
@@ -382,6 +385,12 @@ class RoutePlotter {
       this.isDragging = false;
       this.canvas.classList.remove('dragging');
       this.updateWaypointList();
+      // Save only if a drag actually happened
+      if (this.hasDragged) {
+        this.autoSave();
+        this.hasDragged = false;
+        this.announce('Waypoint moved');
+      }
     }
   }
   
@@ -426,6 +435,8 @@ class RoutePlotter {
     }
     
     this.updateWaypointList();
+    this.autoSave();
+    this.announce(`${isMajor ? 'Major' : 'Minor'} waypoint added`);
     console.log(`Added ${isMajor ? 'major' : 'minor'} waypoint at (${x.toFixed(0)}, ${y.toFixed(0)})`);
   }
   
@@ -497,6 +508,8 @@ class RoutePlotter {
       this.calculatePath();
       this.updateWaypointList();
       this.updateWaypointEditor();
+      this.autoSave();
+      this.announce('Waypoint deleted');
     }
   }
   
@@ -582,6 +595,56 @@ class RoutePlotter {
     
     if (this.elements.splashDontShow.checked) {
       localStorage.setItem('routePlotter_hideSplash', 'true');
+    }
+  }
+
+  // ----- Accessibility and persistence helpers -----
+  announce(message, priority = 'polite') {
+    const el = document.getElementById('announcer');
+    if (!el) return;
+    el.setAttribute('aria-live', priority);
+    el.textContent = message;
+    // Clear after a short delay so repeated messages are announced
+    setTimeout(() => { el.textContent = ''; }, 2000);
+  }
+
+  autoSave() {
+    try {
+      const data = {
+        waypoints: this.waypoints,
+        styles: this.styles,
+        animationState: {
+          mode: this.animationState.mode,
+          speed: this.animationState.speed,
+          duration: this.animationState.duration
+        },
+        timestamp: Date.now()
+      };
+      localStorage.setItem('routePlotter_autosave', JSON.stringify(data));
+    } catch (e) {
+      console.error('Auto-save failed', e);
+    }
+  }
+
+  loadAutosave() {
+    try {
+      const raw = localStorage.getItem('routePlotter_autosave');
+      if (!raw) return;
+      const data = JSON.parse(raw);
+      if (data.waypoints && Array.isArray(data.waypoints)) {
+        this.waypoints = data.waypoints;
+      }
+      if (data.styles) {
+        this.styles = { ...this.styles, ...data.styles };
+      }
+      if (data.animationState) {
+        this.animationState = { ...this.animationState, ...data.animationState };
+      }
+      this.calculatePath();
+      this.updateWaypointList();
+      this.announce('Previous session restored');
+    } catch (e) {
+      console.warn('No autosave found or failed to load');
     }
   }
   
