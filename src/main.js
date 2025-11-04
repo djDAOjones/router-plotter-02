@@ -138,9 +138,6 @@ class RoutePlotter {
       this.showSplash();
     }
     
-    // Load autosaved data if available
-    this.loadAutosave();
-    
     // Initial render
     this.render();
     
@@ -382,13 +379,9 @@ class RoutePlotter {
   
   handleMouseUp(event) {
     if (this.isDragging) {
-      const wasDragged = this.hasDragged;
       this.isDragging = false;
       this.canvas.classList.remove('dragging');
       this.updateWaypointList();
-      if (wasDragged) {
-        this.autoSave(); // Save after dragging waypoint
-      }
     }
   }
   
@@ -433,7 +426,6 @@ class RoutePlotter {
     }
     
     this.updateWaypointList();
-    this.autoSave(); // Save after adding waypoint
     console.log(`Added ${isMajor ? 'major' : 'minor'} waypoint at (${x.toFixed(0)}, ${y.toFixed(0)})`);
   }
   
@@ -505,7 +497,6 @@ class RoutePlotter {
       this.calculatePath();
       this.updateWaypointList();
       this.updateWaypointEditor();
-      this.autoSave(); // Save after deleting waypoint
     }
   }
   
@@ -802,78 +793,9 @@ class RoutePlotter {
       this.ctx.stroke();
     }
   }
-
-  // Auto-save functionality
-  autoSave() {
-    const projectData = {
-      waypoints: this.waypoints,
-      styles: this.styles,
-      animationState: {
-        mode: this.animationState.mode,
-        speed: this.animationState.speed,
-        duration: this.animationState.duration,
-        playbackSpeed: this.animationState.playbackSpeed
-      },
-      timestamp: Date.now()
-    };
-
-    try {
-      localStorage.setItem('routePlotter_autosave', JSON.stringify(projectData));
-      console.log('Project auto-saved');
-    } catch (e) {
-      console.error('Failed to auto-save:', e);
-    }
-  }
-
-  loadAutosave() {
-    try {
-      const saved = localStorage.getItem('routePlotter_autosave');
-      if (saved) {
-        const data = JSON.parse(saved);
-
-        // Restore waypoints
-        if (data.waypoints && data.waypoints.length > 0) {
-          this.waypoints = data.waypoints;
-
-          // Restore styles
-          if (data.styles) {
-            this.styles = { ...this.styles, ...data.styles };
-          }
-
-          // Restore animation settings
-          if (data.animationState) {
-            this.animationState = { ...this.animationState, ...data.animationState };
-          }
-
-          // Recalculate and update UI
-          this.calculatePath();
-          this.updateWaypointList();
-          this.render();
-
-          console.log('Restored autosaved project from', new Date(data.timestamp));
-          this.announce('Previous project restored');
-        }
-      }
-    } catch (e) {
-      console.error('Failed to load autosave:', e);
-    }
-  }
-
-  // Accessibility helper - announce to screen readers
-  announce(message, priority = 'polite') {
-    const announcer = document.getElementById('announcer');
-    if (announcer) {
-      announcer.textContent = message;
-
-      // Clear after 3 seconds
-      setTimeout(() => {
-        announcer.textContent = '';
-      }, 3000);
-    }
-  }
 }
 
-// Create instance when DOM is ready
+// Initialize app when DOM is ready
 document.addEventListener('DOMContentLoaded', () => {
-  window.routePlotter = new RoutePlotter();
+  window.app = new RoutePlotter();
 });

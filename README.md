@@ -1,67 +1,100 @@
 # Route Plotter v3
 
-A sophisticated route plotting and animation tool for creating smooth, animated paths with waypoints.
+An interactive route plotting and animation tool with WCAG 2.2 AAA compliance.
 
 🔗 **[Live Demo on GitHub Pages](https://djdaojones.github.io/router-plotter-02/)**
 
-## Features
+## 🚀 Features
 
 ### Core Functionality
-- 📤 **Image Upload**: Load custom maps or images
-- 📍 **Waypoint Management**: Click to add waypoints on the image
-- 🎨 **Route Visualization**: Colored animated lines between waypoints
-- 🎬 **Animation**: Smooth animated path with ease in/out effects
+
+- **Interactive Waypoint System**: Click to add major waypoints, Shift+click for minor waypoints
+- **Smooth Path Animation**: Catmull-Rom spline interpolation for natural curves
+- **Visual Effects**: Pulse and ripple beacon effects with customizable colors
+- **Auto-save**: Automatically preserves your work in localStorage
 
 ### Styling & Customization
-- 🎨 Line color picker
-- 📏 Line thickness control
-- 🌊 Smooth curve rendering (less jagged routes)
-- 📝 Waypoint annotations with text labels
 
-### Playback Controls
-- ▶️ Play, Pause, Reset controls
-- ⏩ Adjustable animation speed
-- 🔄 Smooth transitions with easing
+- 🎨 Line color picker and thickness control
+- 📏 Waypoint size adjustment
+- ✨ Beacon style selector (None/Pulse/Ripple)
+- 🏃 Animation speed control
 
-### Data Management
-- 💾 Export waypoints (JSON/CSV format)
-- 📥 Import saved waypoint routes
-- ↩️ Undo last waypoint
-- 🗑️ Clear all waypoints
+### Accessibility Features
 
-### Export Options
-- 🎥 Export as video (MP4/WebM)
-- 🖼️ Export as animated GIF
+- **WCAG 2.2 AAA Compliant**: Meets highest accessibility standards
+- **Full Keyboard Navigation**: Complete functionality without mouse
+- **Screen Reader Support**: ARIA labels and live regions
+- **Responsive Design**: Works on all devices
 
-### Design
-- 📱 Fully responsive layout
-- 🎯 Modern, intuitive UI
+## 🎮 Controls
 
-## Tech Stack
-- HTML5 Canvas for rendering
-- Vanilla JavaScript (no heavy frameworks)
-- Modern CSS with responsive design
-- Web APIs for file handling and video export
+### Mouse
 
-## Getting Started
+- **Click**: Add major waypoint
+- **Shift+Click**: Add minor waypoint  
+- **Drag**: Move waypoints
+- **Right-click**: Delete waypoint
 
-1. Clone the repository
-2. Open `index.html` in a modern web browser
-3. Upload an image to begin creating routes
+### Keyboard
 
-## Usage
+- **Space**: Play/pause animation
+- **Arrow Keys**: Nudge selected waypoint
+- **Delete**: Remove selected waypoint
+- **Escape**: Deselect waypoint
 
-1. **Upload Image**: Click the upload button and select your map/image
-2. **Add Waypoints**: Click on the image to place waypoints
-3. **Customize Route**: Adjust line color and thickness
-4. **Animate**: Click play to see your route animate
-5. **Export**: Save your waypoints or export the animation
+## 📁 Project Structure
 
-## Browser Support
-Works on all modern browsers with Canvas and File API support.
+```plaintext
+/
+├── index.html          # Main HTML file
+├── src/
+│   └── main.js        # Core application logic
+├── styles/
+│   └── main.css       # Styles with WCAG AAA colors
+├── package.json       # Project metadata
+└── README.md          # This file
+```
 
-## License
-MIT License
+## 🌐 Live Demo
 
-## Repository
-https://github.com/djDAOjones/router-plotter-01
+Visit the live demo at: [https://djdaojones.github.io/router-plotter-02/](https://djdaojones.github.io/router-plotter-02/)
+
+## 💻 Development
+
+### Quick Start
+
+```bash
+# Clone the repository
+git clone https://github.com/djDAOjones/router-plotter-02.git
+cd router-plotter-02
+
+# Start local server
+python3 -m http.server 3000
+```
+
+Open [http://localhost:3000](http://localhost:3000) in your browser.
+
+### Alternative Server Options
+
+```bash
+# Using Node.js
+npx serve .
+
+# Using PHP
+php -S localhost:3000
+```
+
+## 📝 License
+
+MIT License - see LICENSE file for details
+
+## 👤 Author
+
+Joe Bell - University of Nottingham
+
+## 🔗 Links
+
+- **Repository**: [https://github.com/djDAOjones/router-plotter-02](https://github.com/djDAOjones/router-plotter-02)
+- **Live Demo**: [https://djdaojones.github.io/router-plotter-02/](https://djdaojones.github.io/router-plotter-02/)
+- **Issues**: [https://github.com/djDAOjones/router-plotter-02/issues](https://github.com/djDAOjones/router-plotter-02/issues)
