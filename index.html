@@ -62,6 +62,43 @@
             <span id="path-tension-value">75%</span>
           </label>
         </div>
+
+        <div class="control-group">
+          <h3>Background</h3>
+          <div style="display:flex; gap:0.5rem; align-items:center;">
+            <button id="bg-upload-btn" class="btn btn-secondary" aria-label="Upload background image">Upload Image</button>
+            <input id="bg-upload" type="file" accept="image/png,image/jpeg" style="display:none" />
+          </div>
+          <label>
+            <span>Overlay</span>
+            <input type="range" id="bg-overlay" min="-100" max="100" step="1" value="0" aria-label="Contrast overlay black to white">
+            <span id="bg-overlay-value">0</span>
+          </label>
+          <label>
+            <span>Fit</span>
+            <select id="bg-fit" aria-label="Background fit">
+              <option value="fit" selected>Fit</option>
+              <option value="fill">Fill</option>
+            </select>
+          </label>
+          <label>
+            <span>Aspect</span>
+            <select id="bg-aspect" aria-label="Aspect ratio">
+              <option value="none" selected>None</option>
+              <option value="16:9">16:9</option>
+              <option value="4:3">4:3</option>
+            </select>
+          </label>
+          <div style="display:flex; gap:0.5rem; align-items:center; margin-top:0.5rem;">
+            <button id="bg-mask-btn" class="btn btn-secondary" aria-label="Upload mask image">Load Mask</button>
+            <input id="bg-mask-upload" type="file" accept="image/png,image/jpeg" style="display:none" />
+            <select id="bg-mask-mode" aria-label="Mask mode">
+              <option value="mask" selected>Mask</option>
+              <option value="cutout">Cutout</option>
+            </select>
+          </div>
+          <p class="sr-only" id="bg-drop-hint">Tip: Drag an image onto the canvas to set the background.</p>
+        </div>
         
         <div class="control-group">
           <h3>Waypoints</h3>

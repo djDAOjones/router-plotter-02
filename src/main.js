@@ -81,6 +81,19 @@ class RoutePlotter {
       ripples: []
     };
     
+    // Background layer state
+    this.background = {
+      image: null,
+      mask: null,
+      overlay: 0,        // -100 (black) .. 0 (none) .. 100 (white)
+      fit: 'fit',        // 'fit' | 'fill'
+      aspect: 'none',    // 'none' | '16:9' | '4:3'
+      maskMode: 'mask'   // 'mask' | 'cutout'
+    };
+    
+    // Offscreen canvas for vector layer compositing
+    this.vectorCanvas = null;
+    
     // UI Elements
     this.elements = {
       helpBtn: document.getElementById('help-btn'),
@@ -121,7 +134,17 @@ class RoutePlotter {
       segmentWidthValue: document.getElementById('segment-width-value'),
       segmentStyle: document.getElementById('segment-style'),
       editorBeaconStyle: document.getElementById('editor-beacon-style'),
-      editorBeaconColor: document.getElementById('editor-beacon-color')
+      editorBeaconColor: document.getElementById('editor-beacon-color'),
+      // Background controls
+      bgUploadBtn: document.getElementById('bg-upload-btn'),
+      bgUpload: document.getElementById('bg-upload'),
+      bgOverlay: document.getElementById('bg-overlay'),
+      bgOverlayValue: document.getElementById('bg-overlay-value'),
+      bgFit: document.getElementById('bg-fit'),
+      bgAspect: document.getElementById('bg-aspect'),
+      bgMaskBtn: document.getElementById('bg-mask-btn'),
+      bgMaskUpload: document.getElementById('bg-mask-upload'),
+      bgMaskMode: document.getElementById('bg-mask-mode')
     };
     
     this.init();
@@ -164,6 +187,20 @@ class RoutePlotter {
     this.canvas.addEventListener('mousemove', (e) => this.handleMouseMove(e));
     this.canvas.addEventListener('mouseup', (e) => this.handleMouseUp(e));
     this.canvas.addEventListener('click', (e) => this.handleCanvasClick(e));
+    // Drag & drop background image
+    this.canvas.addEventListener('dragover', (e) => { e.preventDefault(); });
+    this.canvas.addEventListener('drop', (e) => {
+      e.preventDefault();
+      const file = e.dataTransfer?.files?.[0];
+      if (file && file.type.startsWith('image/')) {
+        this.loadImageFile(file).then((img) => {
+          this.background.image = img;
+          this.render();
+          this.autoSave();
+          this.announce('Background image loaded');
+        });
+      }
+    });
     
     // Header controls
     this.elements.helpBtn.addEventListener('click', () => this.showSplash());
@@ -275,6 +312,53 @@ class RoutePlotter {
       this.styles.pathTension = parseInt(e.target.value) / 100;
       this.elements.pathTensionValue.textContent = e.target.value + '%';
       this.calculatePath();
+    });
+    
+    // Background controls
+    this.elements.bgUploadBtn.addEventListener('click', () => this.elements.bgUpload.click());
+    this.elements.bgUpload.addEventListener('change', (e) => {
+      const file = e.target.files?.[0];
+      if (file) {
+        this.loadImageFile(file).then((img) => {
+          this.background.image = img;
+          this.render();
+          this.autoSave();
+          this.announce('Background image loaded');
+        });
+      }
+    });
+    this.elements.bgMaskBtn.addEventListener('click', () => this.elements.bgMaskUpload.click());
+    this.elements.bgMaskUpload.addEventListener('change', (e) => {
+      const file = e.target.files?.[0];
+      if (file) {
+        this.loadImageFile(file).then((img) => {
+          this.background.mask = img;
+          this.render();
+          this.autoSave();
+          this.announce('Mask loaded');
+        });
+      }
+    });
+    this.elements.bgOverlay.addEventListener('input', (e) => {
+      this.background.overlay = parseInt(e.target.value);
+      this.elements.bgOverlayValue.textContent = e.target.value;
+      this.render();
+      this.autoSave();
+    });
+    this.elements.bgFit.addEventListener('change', (e) => {
+      this.background.fit = e.target.value;
+      this.render();
+      this.autoSave();
+    });
+    this.elements.bgAspect.addEventListener('change', (e) => {
+      this.background.aspect = e.target.value;
+      this.render();
+      this.autoSave();
+    });
+    this.elements.bgMaskMode.addEventListener('change', (e) => {
+      this.background.maskMode = e.target.value;
+      this.render();
+      this.autoSave();
     });
     
     // Keyboard shortcuts
@@ -813,25 +897,117 @@ class RoutePlotter {
   }
   
   render() {
-    // Clear canvas
-    this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+    const { ctx, canvas } = this;
+    // Clear
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
     
-    // Draw path with per-segment styling
+    // 1) Base image
+    this.renderBackground(ctx);
+    // 2) Contrast overlay
+    this.renderOverlay(ctx);
+    
+    // 3-6) Vector + head + UI handles on offscreen, then mask compositing
+    const vCanvas = this.getVectorCanvas();
+    const vctx = vCanvas.getContext('2d');
+    vctx.clearRect(0, 0, vCanvas.width, vCanvas.height);
+    this.renderVectorLayerTo(vctx);
+    
+    // Mask compositing
+    if (this.background.mask) {
+      vctx.save();
+      vctx.globalCompositeOperation = this.background.maskMode === 'cutout' ? 'destination-out' : 'destination-in';
+      const rect = this.getAspectRect();
+      vctx.drawImage(this.background.mask, rect.x, rect.y, rect.w, rect.h);
+      vctx.restore();
+    }
+    
+    // Blit vector layer to main
+    ctx.drawImage(vCanvas, 0, 0);
+  }
+
+  // ----- Layer helpers -----
+  getVectorCanvas() {
+    if (!this.vectorCanvas) {
+      this.vectorCanvas = document.createElement('canvas');
+    }
+    if (this.vectorCanvas.width !== this.canvas.width || this.vectorCanvas.height !== this.canvas.height) {
+      this.vectorCanvas.width = this.canvas.width;
+      this.vectorCanvas.height = this.canvas.height;
+    }
+    return this.vectorCanvas;
+  }
+  
+  getAspectRect() {
+    const cw = this.canvas.width; const ch = this.canvas.height;
+    if (this.background.aspect === '16:9') {
+      const target = 16 / 9;
+      const cur = cw / ch;
+      if (cur > target) { // too wide, pillarbox
+        const w = Math.floor(ch * target); const x = Math.floor((cw - w) / 2);
+        return { x, y: 0, w, h: ch };
+      } else { // too tall, letterbox
+        const h = Math.floor(cw / target); const y = Math.floor((ch - h) / 2);
+        return { x: 0, y, w: cw, h };
+      }
+    } else if (this.background.aspect === '4:3') {
+      const target = 4 / 3;
+      const cur = cw / ch;
+      if (cur > target) {
+        const w = Math.floor(ch * target); const x = Math.floor((cw - w) / 2);
+        return { x, y: 0, w, h: ch };
+      } else {
+        const h = Math.floor(cw / target); const y = Math.floor((ch - h) / 2);
+        return { x: 0, y, w: cw, h };
+      }
+    }
+    return { x: 0, y: 0, w: cw, h: ch };
+  }
+  
+  renderBackground(ctx) {
+    if (!this.background.image) return;
+    const rect = this.getAspectRect();
+    const img = this.background.image;
+    const iw = img.naturalWidth || img.width; const ih = img.naturalHeight || img.height;
+    const sxsy = { sx: 0, sy: 0, sw: iw, sh: ih };
+    let dx = rect.x, dy = rect.y, dw = rect.w, dh = rect.h;
+    const scaleFit = Math.min(rect.w / iw, rect.h / ih);
+    const scaleFill = Math.max(rect.w / iw, rect.h / ih);
+    if (this.background.fit === 'fit') {
+      dw = Math.round(iw * scaleFit); dh = Math.round(ih * scaleFit);
+      dx = Math.floor(rect.x + (rect.w - dw) / 2); dy = Math.floor(rect.y + (rect.h - dh) / 2);
+      ctx.drawImage(img, dx, dy, dw, dh);
+    } else { // fill
+      const sw = Math.round(rect.w / scaleFill); const sh = Math.round(rect.h / scaleFill);
+      const sx = Math.floor((iw - sw) / 2); const sy = Math.floor((ih - sh) / 2);
+      ctx.drawImage(img, sx, sy, sw, sh, rect.x, rect.y, rect.w, rect.h);
+    }
+  }
+  
+  renderOverlay(ctx) {
+    const v = this.background.overlay;
+    if (v === 0) return;
+    const rect = this.getAspectRect();
+    ctx.save();
+    ctx.globalAlpha = Math.min(Math.abs(v) / 100, 0.6);
+    ctx.fillStyle = v < 0 ? '#000' : '#fff';
+    ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
+    ctx.restore();
+  }
+
+  renderVectorLayerTo(targetCtx) {
+    const orig = this.ctx; this.ctx = targetCtx;
+    // 4) Vector layer (paths, labels, waypoints)
     if (this.pathPoints.length > 0 && this.waypoints.length > 1) {
       const totalPoints = this.pathPoints.length;
       const pointsToRender = Math.floor(totalPoints * this.animationState.progress);
-      
-      // Calculate which waypoint each path point belongs to
       const segments = this.waypoints.length - 1;
       const pointsPerSegment = Math.floor(totalPoints / segments);
-      // Precompute controlling (last-major) waypoint index for each segment
       const controllerForSegment = new Array(segments);
       let lastMajorIdx = -1;
       for (let s = 0; s < segments; s++) {
         if (this.waypoints[s].isMajor) lastMajorIdx = s;
-        controllerForSegment[s] = lastMajorIdx; // -1 means fallback to default
+        controllerForSegment[s] = lastMajorIdx;
       }
-      
       for (let i = 1; i < pointsToRender; i++) {
         const segmentIndex = Math.min(Math.floor(i / pointsPerSegment), segments - 1);
         const controllerIdx = controllerForSegment[segmentIndex];
@@ -840,38 +1016,36 @@ class RoutePlotter {
           segmentWidth: this.styles.pathThickness,
           segmentStyle: 'solid'
         };
-        
-        // Set segment style
         this.ctx.strokeStyle = controller.segmentColor;
         this.ctx.lineWidth = controller.segmentWidth;
         this.ctx.lineCap = 'round';
         this.ctx.lineJoin = 'round';
-        
-        // Apply line style
         this.applyLineStyle(controller.segmentStyle);
-        
         this.ctx.beginPath();
         this.ctx.moveTo(this.pathPoints[i - 1].x, this.pathPoints[i - 1].y);
         this.ctx.lineTo(this.pathPoints[i].x, this.pathPoints[i].y);
         this.ctx.stroke();
       }
-      
-      // Reset dash
       this.ctx.setLineDash([]);
+      
+      // 5) Path head layer
+      if (pointsToRender > 1) {
+        const head = this.pathPoints[Math.min(pointsToRender - 1, this.pathPoints.length - 1)];
+        this.ctx.beginPath();
+        this.ctx.fillStyle = '#111';
+        this.ctx.arc(head.x, head.y, 4, 0, Math.PI * 2);
+        this.ctx.fill();
+      }
     }
     
-    // Draw beacons on major waypoints that have been passed
+    // Beacons
     if (this.pathPoints.length > 0) {
       const currentProgress = this.animationState.progress;
       const totalPoints = this.pathPoints.length;
       const currentPointIndex = Math.floor(totalPoints * currentProgress);
-      
       this.waypoints.forEach((waypoint, wpIndex) => {
         if (waypoint.isMajor) {
-          // Calculate approximate point index for this waypoint
           const waypointPointIndex = Math.floor((wpIndex / (this.waypoints.length - 1)) * totalPoints);
-          
-          // Show beacon if animation has passed this waypoint
           if (currentPointIndex >= waypointPointIndex && waypointPointIndex < currentPointIndex + 20) {
             this.drawBeacon(waypoint);
           }
@@ -879,15 +1053,12 @@ class RoutePlotter {
       });
     }
     
-    // Draw waypoints (only major ones are visible)
+    // 6) UI handles (visible markers)
     this.waypoints.forEach(waypoint => {
       if (waypoint.isMajor) {
-        // Highlight selected waypoint
         const isSelected = waypoint === this.selectedWaypoint;
         const baseSize = waypoint.dotSize || this.styles.waypointSize;
         const size = isSelected ? baseSize * 1.3 : baseSize;
-        
-        // Major waypoint - filled circle
         this.ctx.beginPath();
         this.ctx.fillStyle = waypoint.dotColor || waypoint.segmentColor;
         this.ctx.strokeStyle = isSelected ? '#4a90e2' : 'white';
@@ -896,7 +1067,18 @@ class RoutePlotter {
         this.ctx.fill();
         this.ctx.stroke();
       }
-      // Minor waypoints are invisible - they just shape the path
+    });
+    this.ctx = orig;
+  }
+
+  // ----- Assets -----
+  loadImageFile(file) {
+    return new Promise((resolve, reject) => {
+      const url = URL.createObjectURL(file);
+      const img = new Image();
+      img.onload = () => { URL.revokeObjectURL(url); resolve(img); };
+      img.onerror = reject;
+      img.src = url;
     });
   }
   
