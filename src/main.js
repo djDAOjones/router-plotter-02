@@ -175,7 +175,7 @@ class RoutePlotter {
     
     // Timeline slider
     this.elements.timelineSlider.addEventListener('input', (e) => {
-      this.animationState.progress = e.target.value / 100;
+      this.animationState.progress = e.target.value / 1000;
       this.animationState.currentTime = this.animationState.progress * this.animationState.duration;
     });
     
@@ -570,7 +570,7 @@ class RoutePlotter {
   skipToEnd() {
     this.animationState.progress = 1;
     this.animationState.currentTime = this.animationState.duration;
-    this.elements.timelineSlider.value = 100;
+    this.elements.timelineSlider.value = 1000;
   }
   
   clearAll() {
@@ -671,7 +671,7 @@ class RoutePlotter {
         }
         
         // Update timeline slider
-        this.elements.timelineSlider.value = this.animationState.progress * 100;
+        this.elements.timelineSlider.value = this.animationState.progress * 1000;
         
         // Update time display
         this.updateTimeDisplay();
