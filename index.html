@@ -93,24 +93,22 @@
                 <option value="squiggle">Squiggle</option>
               </select>
             </label>
+            <hr style="border:none;border-top:1px solid #eee;margin:0.75rem 0;" />
+            <label>
+              <span>Beacon Effect</span>
+              <select id="editor-beacon-style">
+                <option value="none">None</option>
+                <option value="pulse">Pulse</option>
+                <option value="ripple">Ripple</option>
+              </select>
+            </label>
+            <label>
+              <span>Beacon Color</span>
+              <input type="color" id="editor-beacon-color" value="#FF6B6B">
+            </label>
           </div>
         </div>
         
-        <div class="control-group">
-          <h3>Beacon</h3>
-          <label>
-            <span>Effect</span>
-            <select id="beacon-style">
-              <option value="none">None</option>
-              <option value="pulse" selected>Pulse</option>
-              <option value="ripple">Ripple</option>
-            </select>
-          </label>
-          <label>
-            <span>Color</span>
-            <input type="color" id="beacon-color" value="#FF6B6B">
-          </label>
-        </div>
       </aside>
       
       <!-- Canvas for drawing -->

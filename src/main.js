@@ -71,7 +71,7 @@ class RoutePlotter {
       pathThickness: 3,
       pathTension: 0.75, // Catmull-Rom tension (75% = less smooth)
       waypointSize: 8,
-      beaconStyle: 'pulse',
+      beaconStyle: 'pulse', // default for new major waypoints
       beaconColor: '#FF6B6B'
     };
     
@@ -119,7 +119,9 @@ class RoutePlotter {
       segmentColor: document.getElementById('segment-color'),
       segmentWidth: document.getElementById('segment-width'),
       segmentWidthValue: document.getElementById('segment-width-value'),
-      segmentStyle: document.getElementById('segment-style')
+      segmentStyle: document.getElementById('segment-style'),
+      editorBeaconStyle: document.getElementById('editor-beacon-style'),
+      editorBeaconColor: document.getElementById('editor-beacon-color')
     };
     
     this.init();
@@ -194,13 +196,19 @@ class RoutePlotter {
       this.elements.waypointSizeValue.textContent = e.target.value;
     });
     
-    this.elements.beaconStyle.addEventListener('change', (e) => {
-      this.styles.beaconStyle = e.target.value;
-      this.beaconAnimation.ripples = []; // Clear ripples when changing style
+    // Per-waypoint beacon edits (only apply to major waypoints)
+    this.elements.editorBeaconStyle.addEventListener('change', (e) => {
+      if (this.selectedWaypoint && this.selectedWaypoint.isMajor) {
+        this.selectedWaypoint.beaconStyle = e.target.value;
+        if (this.selectedWaypoint.beaconStyle !== 'ripple') {
+          this.beaconAnimation.ripples = [];
+        }
+      }
     });
-    
-    this.elements.beaconColor.addEventListener('input', (e) => {
-      this.styles.beaconColor = e.target.value;
+    this.elements.editorBeaconColor.addEventListener('input', (e) => {
+      if (this.selectedWaypoint && this.selectedWaypoint.isMajor) {
+        this.selectedWaypoint.beaconColor = e.target.value;
+      }
     });
     
     // Waypoint editor controls
@@ -426,7 +434,10 @@ class RoutePlotter {
       // Segment styling (from this waypoint to next)
       segmentColor: this.styles.pathColor,
       segmentWidth: this.styles.pathThickness,
-      segmentStyle: 'solid'
+      segmentStyle: 'solid',
+      // Per-waypoint beacon settings (majors only)
+      beaconStyle: isMajor ? this.styles.beaconStyle : 'none',
+      beaconColor: isMajor ? this.styles.beaconColor : this.styles.beaconColor
     });
     
     // Recalculate path if we have enough waypoints
@@ -492,6 +503,19 @@ class RoutePlotter {
       this.elements.segmentWidth.value = this.selectedWaypoint.segmentWidth;
       this.elements.segmentWidthValue.textContent = this.selectedWaypoint.segmentWidth;
       this.elements.segmentStyle.value = this.selectedWaypoint.segmentStyle;
+      // Beacon editor fields
+      if (this.selectedWaypoint.isMajor) {
+        this.elements.editorBeaconStyle.disabled = false;
+        this.elements.editorBeaconColor.disabled = false;
+        this.elements.editorBeaconStyle.value = this.selectedWaypoint.beaconStyle || this.styles.beaconStyle;
+        this.elements.editorBeaconColor.value = this.selectedWaypoint.beaconColor || this.styles.beaconColor;
+      } else {
+        // Minor waypoints: disable beacon controls
+        this.elements.editorBeaconStyle.disabled = true;
+        this.elements.editorBeaconColor.disabled = true;
+        this.elements.editorBeaconStyle.value = 'none';
+        this.elements.editorBeaconColor.value = this.styles.beaconColor;
+      }
     } else {
       // Hide editor
       this.elements.waypointEditor.style.display = 'none';
@@ -706,20 +730,29 @@ class RoutePlotter {
       const pointsToRender = Math.floor(totalPoints * this.animationState.progress);
       
       // Calculate which waypoint each path point belongs to
-      const pointsPerSegment = Math.floor(totalPoints / (this.waypoints.length - 1));
+      const segments = this.waypoints.length - 1;
+      const pointsPerSegment = Math.floor(totalPoints / segments);
+      // Precompute controlling (last-major) waypoint index for each segment
+      const controllerForSegment = new Array(segments);
+      let lastMajorIdx = -1;
+      for (let s = 0; s < segments; s++) {
+        if (this.waypoints[s].isMajor) lastMajorIdx = s;
+        controllerForSegment[s] = lastMajorIdx; // -1 means fallback to default
+      }
       
       for (let i = 1; i < pointsToRender; i++) {
-        const segmentIndex = Math.min(Math.floor(i / pointsPerSegment), this.waypoints.length - 2);
-        const waypoint = this.waypoints[segmentIndex];
+        const segmentIndex = Math.min(Math.floor(i / pointsPerSegment), segments - 1);
+        const controllerIdx = controllerForSegment[segmentIndex];
+        const controller = controllerIdx >= 0 ? this.waypoints[controllerIdx] : null;
         
         // Set segment style
-        this.ctx.strokeStyle = waypoint.segmentColor;
-        this.ctx.lineWidth = waypoint.segmentWidth;
+        this.ctx.strokeStyle = controller ? controller.segmentColor : this.styles.pathColor;
+        this.ctx.lineWidth = controller ? controller.segmentWidth : this.styles.pathThickness;
         this.ctx.lineCap = 'round';
         this.ctx.lineJoin = 'round';
         
         // Apply line style
-        this.applyLineStyle(waypoint.segmentStyle);
+        this.applyLineStyle(controller ? controller.segmentStyle : 'solid');
         
         this.ctx.beginPath();
         this.ctx.moveTo(this.pathPoints[i - 1].x, this.pathPoints[i - 1].y);
@@ -732,7 +765,7 @@ class RoutePlotter {
     }
     
     // Draw beacons on major waypoints that have been passed
-    if (this.pathPoints.length > 0 && this.styles.beaconStyle !== 'none') {
+    if (this.pathPoints.length > 0) {
       const currentProgress = this.animationState.progress;
       const totalPoints = this.pathPoints.length;
       const currentPointIndex = Math.floor(totalPoints * currentProgress);
@@ -790,9 +823,11 @@ class RoutePlotter {
   }
   
   drawBeacon(point) {
-    if (this.styles.beaconStyle === 'none') return;
+    const bStyle = point.beaconStyle || 'none';
+    const bColor = point.beaconColor || this.styles.beaconColor;
+    if (bStyle === 'none') return;
     
-    if (this.styles.beaconStyle === 'pulse') {
+    if (bStyle === 'pulse') {
       // Update pulse phase
       this.beaconAnimation.pulsePhase = performance.now() * 0.003;
       
@@ -804,8 +839,8 @@ class RoutePlotter {
         point.x, point.y, 0,
         point.x, point.y, 15 * pulse
       );
-      gradient.addColorStop(0, this.styles.beaconColor + 'ff');
-      gradient.addColorStop(1, this.styles.beaconColor + '00');
+      gradient.addColorStop(0, bColor + 'ff');
+      gradient.addColorStop(1, bColor + '00');
       
       this.ctx.beginPath();
       this.ctx.fillStyle = gradient;
@@ -814,14 +849,14 @@ class RoutePlotter {
       
       // Inner dot
       this.ctx.beginPath();
-      this.ctx.fillStyle = this.styles.beaconColor;
+      this.ctx.fillStyle = bColor;
       this.ctx.strokeStyle = 'white';
       this.ctx.lineWidth = 2;
       this.ctx.arc(point.x, point.y, 6, 0, Math.PI * 2);
       this.ctx.fill();
       this.ctx.stroke();
       
-    } else if (this.styles.beaconStyle === 'ripple') {
+    } else if (bStyle === 'ripple') {
       // Add new ripples periodically
       if (Math.random() < 0.03) { // ~3% chance per frame
         this.beaconAnimation.ripples.push({
@@ -837,7 +872,7 @@ class RoutePlotter {
         
         if (ripple.opacity > 0) {
           this.ctx.beginPath();
-          this.ctx.strokeStyle = this.styles.beaconColor + Math.floor(ripple.opacity * 255).toString(16).padStart(2, '0');
+          this.ctx.strokeStyle = bColor + Math.floor(ripple.opacity * 255).toString(16).padStart(2, '0');
           this.ctx.lineWidth = 2;
           this.ctx.arc(point.x, point.y, 10 * ripple.scale, 0, Math.PI * 2);
           this.ctx.stroke();
@@ -848,7 +883,7 @@ class RoutePlotter {
       
       // Center dot
       this.ctx.beginPath();
-      this.ctx.fillStyle = this.styles.beaconColor;
+      this.ctx.fillStyle = bColor;
       this.ctx.strokeStyle = 'white';
       this.ctx.lineWidth = 2;
       this.ctx.arc(point.x, point.y, 6, 0, Math.PI * 2);
