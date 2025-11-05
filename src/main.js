@@ -574,53 +574,6 @@ class RoutePlotter {
       item.appendChild(label);
       item.appendChild(delBtn);
       
-      // Controls row
-      const controls = document.createElement('div');
-      controls.style.display = 'grid';
-      controls.style.gridTemplateColumns = 'auto auto auto auto';
-      controls.style.gap = '0.5rem';
-      controls.style.marginTop = '0.5rem';
-      
-      // Path color
-      const pathColor = document.createElement('input');
-      pathColor.type = 'color';
-      pathColor.value = waypoint.segmentColor;
-      pathColor.title = 'Path color';
-      pathColor.setAttribute('aria-label', `Path color for waypoint ${index + 1}`);
-      controls.appendChild(pathColor);
-      
-      // Path width
-      const pathWidth = document.createElement('input');
-      pathWidth.type = 'range';
-      pathWidth.min = '1';
-      pathWidth.max = '10';
-      pathWidth.step = '0.5';
-      pathWidth.value = waypoint.segmentWidth;
-      pathWidth.title = 'Path width';
-      pathWidth.setAttribute('aria-label', `Path width for waypoint ${index + 1}`);
-      controls.appendChild(pathWidth);
-      
-      // Dot color
-      const dotColor = document.createElement('input');
-      dotColor.type = 'color';
-      dotColor.value = waypoint.dotColor || waypoint.segmentColor;
-      dotColor.title = 'Dot color';
-      dotColor.setAttribute('aria-label', `Dot color for waypoint ${index + 1}`);
-      controls.appendChild(dotColor);
-      
-      // Dot size
-      const dotSize = document.createElement('input');
-      dotSize.type = 'range';
-      dotSize.min = '4';
-      dotSize.max = '16';
-      dotSize.step = '1';
-      dotSize.value = waypoint.dotSize || this.styles.waypointSize;
-      dotSize.title = 'Dot size';
-      dotSize.setAttribute('aria-label', `Dot size for waypoint ${index + 1}`);
-      controls.appendChild(dotSize);
-      
-      item.appendChild(controls);
-      
       // Selection by clicking header bits
       const selectWaypoint = (e) => {
         e.stopPropagation();
@@ -631,35 +584,6 @@ class RoutePlotter {
       label.addEventListener('click', selectWaypoint);
       handle.addEventListener('click', selectWaypoint);
       item.addEventListener('click', selectWaypoint);
-      
-      // Event handlers for controls
-      pathColor.addEventListener('input', (e) => {
-        e.stopPropagation();
-        waypoint.segmentColor = e.target.value;
-        this.calculatePath();
-        this.autoSave();
-      });
-      pathWidth.addEventListener('input', (e) => {
-        e.stopPropagation();
-        waypoint.segmentWidth = parseFloat(e.target.value);
-        this.calculatePath();
-        this.autoSave();
-      });
-      dotColor.addEventListener('input', (e) => {
-        e.stopPropagation();
-        waypoint.dotColor = e.target.value;
-        this.render();
-        this.autoSave();
-      });
-      dotSize.addEventListener('input', (e) => {
-        e.stopPropagation();
-        waypoint.dotSize = parseInt(e.target.value);
-        this.render();
-        this.autoSave();
-      });
-      
-      // Make item clickable for selection
-      // (Handled above)
       
       // Delete button
       delBtn.addEventListener('click', (e) => {
@@ -818,6 +742,12 @@ class RoutePlotter {
           speed: this.animationState.speed,
           duration: this.animationState.duration
         },
+        background: {
+          overlay: this.background.overlay,
+          fit: this.background.fit,
+          aspect: this.background.aspect,
+          maskMode: this.background.maskMode
+        },
         timestamp: Date.now()
       };
       localStorage.setItem('routePlotter_autosave', JSON.stringify(data));
@@ -839,6 +769,20 @@ class RoutePlotter {
       }
       if (data.animationState) {
         this.animationState = { ...this.animationState, ...data.animationState };
+      }
+      if (data.background) {
+        this.background.overlay = data.background.overlay ?? this.background.overlay;
+        this.background.fit = data.background.fit ?? this.background.fit;
+        this.background.aspect = data.background.aspect ?? this.background.aspect;
+        this.background.maskMode = data.background.maskMode ?? this.background.maskMode;
+        // Reflect in UI if controls exist
+        if (this.elements.bgOverlay) {
+          this.elements.bgOverlay.value = String(this.background.overlay);
+          this.elements.bgOverlayValue.textContent = String(this.background.overlay);
+        }
+        if (this.elements.bgFit) this.elements.bgFit.value = this.background.fit;
+        if (this.elements.bgAspect) this.elements.bgAspect.value = this.background.aspect;
+        if (this.elements.bgMaskMode) this.elements.bgMaskMode.value = this.background.maskMode;
       }
       this.calculatePath();
       this.updateWaypointList();
