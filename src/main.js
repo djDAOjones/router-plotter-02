@@ -1132,17 +1132,16 @@ class RoutePlotter {
       // We only want to pause when we reach a specific waypoint
       const waypointSegmentIndex = wp.index;
       
-      // Calculate how far we've advanced into the next segment
-      const segmentPosition = rawProgress * (this.waypoints.length - 1);
-      const segmentProgress = segmentPosition - Math.floor(segmentPosition);
+      // Handle exact waypoint positions rather than segments
+      // This is important since we're using normalized progress values
+      const distanceFromWaypoint = Math.abs(rawProgress - wp.progress);
       
-      // Check if we're at a waypoint that needs pausing
-      // We pause when we JUST cross a waypoint (within a small distance after it)
-      const justPassedWaypoint = (
-        waypointSegmentIndex === segmentIndex && // We're in the segment starting with this waypoint
-        segmentProgress < 0.01 && // We've just started this segment (within 1%)
-        wp.index !== this.animationState.pauseWaypointIndex // Haven't paused here yet
-      );
+      // Check if we're exactly at this waypoint (or very close to it)
+      // We pause when we're exactly at or just passed a waypoint position
+      const atWaypoint = distanceFromWaypoint < 0.0001;
+      const notAlreadyPaused = wp.index !== this.animationState.pauseWaypointIndex; // Haven't paused here yet
+      
+      const justPassedWaypoint = atWaypoint && notAlreadyPaused;
       
       if (justPassedWaypoint) {
         console.log(`PAUSING at waypoint ${wp.index} (progress ${wp.progress.toFixed(3)})`, wp.waypoint);
@@ -1500,6 +1499,12 @@ class RoutePlotter {
     const cw = this.displayWidth || this.canvas.width;
     const ch = this.displayHeight || this.canvas.height;
     
+    // Safety check - ensure canvas has valid dimensions
+    if (cw <= 0 || ch <= 0) {
+      console.warn('Cannot render to canvas with invalid dimensions:', { width: cw, height: ch });
+      return; // Skip rendering
+    }
+    
     // Clear
     ctx.clearRect(0, 0, cw, ch);
     
@@ -1510,12 +1515,22 @@ class RoutePlotter {
     
     // 3-6) Vector + head + UI handles on offscreen canvas
     const vCanvas = this.getVectorCanvas();
+    
+    // Safety check for vector canvas
+    if (vCanvas.width <= 0 || vCanvas.height <= 0) {
+      console.warn('Vector canvas has invalid dimensions:', { width: vCanvas.width, height: vCanvas.height });
+      return; // Skip drawing vector layer
+    }
+    
     const vctx = vCanvas.getContext('2d');
     vctx.clearRect(0, 0, vCanvas.width, vCanvas.height);
     this.renderVectorLayerTo(vctx);
     
-    // Blit vector layer to main
-    ctx.drawImage(vCanvas, 0, 0);
+    // Safety check before drawing vector layer
+    if (vCanvas.width > 0 && vCanvas.height > 0) {
+      // Blit vector layer to main
+      ctx.drawImage(vCanvas, 0, 0);
+    }
   }
 
   // ----- Layer helpers -----
@@ -1523,17 +1538,28 @@ class RoutePlotter {
     if (!this.vectorCanvas) {
       this.vectorCanvas = document.createElement('canvas');
     }
-    const cw = this.displayWidth || this.canvas.width;
-    const ch = this.displayHeight || this.canvas.height;
-    if (this.vectorCanvas.width !== cw || this.vectorCanvas.height !== ch) {
-      this.vectorCanvas.width = cw;
-      this.vectorCanvas.height = ch;
+    
+    // Get canvas dimensions with safety checks
+    const cw = this.displayWidth || this.canvas.width || 100; // Fallback to minimum size
+    const ch = this.displayHeight || this.canvas.height || 100;
+    
+    // Ensure we have valid dimensions > 0
+    const safeWidth = Math.max(1, cw);
+    const safeHeight = Math.max(1, ch);
+    
+    // Only update if dimensions changed
+    if (this.vectorCanvas.width !== safeWidth || this.vectorCanvas.height !== safeHeight) {
+      console.log('Resizing vector canvas to:', safeWidth, 'x', safeHeight);
+      this.vectorCanvas.width = safeWidth;
+      this.vectorCanvas.height = safeHeight;
+      
       // Disable smoothing on vector canvas too
       const vctx = this.vectorCanvas.getContext('2d');
       if (vctx) {
         vctx.imageSmoothingEnabled = false;
       }
     }
+    
     return this.vectorCanvas;
   }
   
