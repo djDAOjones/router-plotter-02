@@ -65,7 +65,13 @@ class RoutePlotter {
       duration: 5000, // default 5 seconds
       speed: 200, // pixels per second
       mode: 'constant-speed', // or 'constant-time'
-      playbackSpeed: 1 // 0.5, 1, or 2
+      playbackSpeed: 1, // 0.5, 1, or 2
+      // Pause state tracking (at runtime only, not saved)
+      isPaused: false,
+      pauseStartTime: 0,
+      pauseEndTime: 0,
+      pauseWaypointIndex: -1,
+      waitingForClick: false
     };
     
     // Style settings
@@ -127,6 +133,12 @@ class RoutePlotter {
       animationDurationValue: document.getElementById('animation-duration-value'),
       speedControl: document.getElementById('speed-control'),
       durationControl: document.getElementById('duration-control'),
+      // Pause controls
+      waypointPauseMode: document.getElementById('waypoint-pause-mode'),
+      waypointPauseTime: document.getElementById('waypoint-pause-time'),
+      waypointPauseTimeValue: document.getElementById('waypoint-pause-time-value'),
+      pauseTimeControl: document.getElementById('pause-time-control'),
+      easeMotion: document.getElementById('ease-motion'),
       waypointList: document.getElementById('waypoint-list'),
       // Waypoint editor controls
       waypointEditor: document.getElementById('waypoint-editor'),
@@ -410,11 +422,34 @@ class RoutePlotter {
     });
     
     this.elements.animationDuration.addEventListener('input', (e) => {
-      this.animationState.duration = parseFloat(e.target.value) * 1000;
+      this.animationState.duration = parseFloat(e.target.value) * 1000; // Convert to ms
       this.elements.animationDurationValue.textContent = e.target.value + 's';
-      this.updateTimeDisplay();
+      this.autoSave();
     });
     
+    // Add waypoint pause mode control (in waypoint editor)
+    this.elements.waypointPauseMode.addEventListener('change', (e) => {
+      if (this.selectedWaypoint && this.selectedWaypoint.isMajor) {
+        // Update the selected waypoint's pause mode
+        this.selectedWaypoint.pauseMode = e.target.value;
+        
+        // Show/hide pause time control based on mode
+        this.elements.pauseTimeControl.style.display = 
+          e.target.value === 'timed' ? 'flex' : 'none';
+        
+        this.autoSave();
+      }
+    });
+    
+    // Waypoint pause time (in waypoint editor)
+    this.elements.waypointPauseTime.addEventListener('input', (e) => {
+      if (this.selectedWaypoint && this.selectedWaypoint.isMajor) {
+        // Update the selected waypoint's pause time (in milliseconds)
+        this.selectedWaypoint.pauseTime = parseFloat(e.target.value) * 1000;
+        this.elements.waypointPauseTimeValue.textContent = e.target.value + 's';
+        this.autoSave();
+      }
+    });
     
     // Background controls
     this.elements.bgUploadBtn.addEventListener('click', () => this.elements.bgUpload.click());
@@ -628,7 +663,9 @@ class RoutePlotter {
       beaconColor: isMajor ? this.styles.beaconColor : this.styles.beaconColor,
       label: isMajor ? `Waypoint ${this.waypoints.length + 1}` : '',
       labelMode: isMajor ? this.styles.labelMode : 'none',
-      labelPosition: this.styles.labelPosition
+      labelPosition: this.styles.labelPosition,
+      pauseMode: isMajor ? 'none' : 'none', // 'none', 'timed', 'click'
+      pauseTime: 1500 // in milliseconds
     };
     
     // If there's a previous waypoint, inherit its properties
@@ -643,7 +680,9 @@ class RoutePlotter {
       beaconColor: previousWaypoint.beaconColor || this.styles.beaconColor,
       label: isMajor ? `Waypoint ${this.waypoints.length + 1}` : '',
       labelMode: isMajor ? (previousWaypoint.labelMode || this.styles.labelMode) : 'none',
-      labelPosition: previousWaypoint.labelPosition || this.styles.labelPosition
+      labelPosition: previousWaypoint.labelPosition || this.styles.labelPosition,
+      pauseMode: isMajor ? (previousWaypoint.pauseMode || 'none') : 'none',
+      pauseTime: previousWaypoint.pauseTime || 1500
     } : defaultProps;
     
     // Add waypoint
@@ -759,6 +798,18 @@ class RoutePlotter {
         this.elements.waypointLabel.value = this.selectedWaypoint.label || '';
         this.elements.labelMode.value = this.selectedWaypoint.labelMode || 'none';
         this.elements.labelPosition.value = this.selectedWaypoint.labelPosition || 'auto';
+        
+        // Pause controls
+        this.elements.waypointPauseMode.disabled = false;
+        this.elements.waypointPauseTime.disabled = false;
+        this.elements.waypointPauseMode.value = this.selectedWaypoint.pauseMode || 'none';
+        // Convert pauseTime from ms to seconds for display
+        const pauseTimeSec = (this.selectedWaypoint.pauseTime || 1500) / 1000;
+        this.elements.waypointPauseTime.value = pauseTimeSec;
+        this.elements.waypointPauseTimeValue.textContent = pauseTimeSec + 's';
+        // Show/hide pause time based on mode
+        this.elements.pauseTimeControl.style.display = 
+          this.selectedWaypoint.pauseMode === 'timed' ? 'flex' : 'none';
       } else {
         // Minor waypoints: disable beacon and label controls
         this.elements.dotColor.disabled = true;
@@ -775,6 +826,12 @@ class RoutePlotter {
         this.elements.waypointLabel.value = '';
         this.elements.labelMode.value = 'none';
         this.elements.labelPosition.value = 'auto';
+        
+        // Disable pause controls for minor waypoints
+        this.elements.waypointPauseMode.disabled = true;
+        this.elements.waypointPauseTime.disabled = true;
+        this.elements.waypointPauseMode.value = 'none';
+        this.elements.pauseTimeControl.style.display = 'none';
       }
     } else {
       // Hide editor and show placeholder
@@ -996,6 +1053,138 @@ class RoutePlotter {
     return evenPath;
   }
   
+  // Get positions of major waypoints as normalized progress values (0-1)
+  getMajorWaypointPositions() {
+    if (this.waypoints.length < 2) return [];
+    
+    const majorWaypoints = [];
+    let totalSegments = this.waypoints.length - 1;
+    
+    for (let i = 0; i < this.waypoints.length; i++) {
+      if (this.waypoints[i].isMajor) {
+        // Calculate position as progress (0-1) along the path
+        const progress = i / totalSegments;
+        majorWaypoints.push({ 
+          index: i, 
+          progress: progress,
+          waypoint: this.waypoints[i]
+        });
+      }
+    }
+    
+    return majorWaypoints;
+  }
+  
+  // Apply easing around major waypoints with pause settings
+  applyEasing(rawProgress, majorWaypoints) {
+    // Default to raw progress if no waypoints
+    if (majorWaypoints.length === 0) return rawProgress;
+    
+    // Easing parameters
+    const easeWindow = 0.1; // 10% of the total duration for easing (5% before, 5% after)
+    
+    // Check if we're near a major waypoint that has pause settings
+    for (let i = 0; i < majorWaypoints.length; i++) {
+      const wp = majorWaypoints[i];
+      
+      // Only apply easing if this waypoint has pause settings
+      if (!wp.waypoint || wp.waypoint.pauseMode === 'none') continue;
+      
+      const distance = Math.abs(rawProgress - wp.progress);
+      
+      // If we're within the ease window (before or after the waypoint)
+      if (distance < easeWindow / 2) {
+        // Determine if we're approaching or leaving the waypoint
+        const approaching = rawProgress < wp.progress;
+        
+        // Calculate normalized distance within the ease window (0-1)
+        const normalizedDistance = distance / (easeWindow / 2);
+        
+        if (approaching) {
+          // Ease in - decelerate as we approach
+          // Use ease-out function as we approach (slowing down)
+          const easeFactor = this.easeOutQuad(1 - normalizedDistance);
+          return wp.progress - (distance * easeFactor);
+        } else {
+          // Ease out - accelerate as we leave
+          // Use ease-in function as we leave (speeding up)
+          const easeFactor = this.easeInQuad(normalizedDistance);
+          return wp.progress + (distance * easeFactor);
+        }
+      }
+    }
+    
+    // If not near any major waypoint, use raw progress
+    return rawProgress;
+  }
+  
+  // Check if we just reached a major waypoint and need to pause
+  checkForWaypointPause(rawProgress, majorWaypoints) {
+    if (this.animationState.isPaused) {
+      return; // Already paused
+    }
+    
+    // Debug log major waypoints with pause settings
+    console.log('Checking for waypoint pause:', {
+      rawProgress,
+      waypoints: majorWaypoints.map(wp => {
+        return {
+          index: wp.index,
+          progress: wp.progress,
+          pauseMode: wp.waypoint?.pauseMode || 'none'
+        };
+      })
+    });
+    
+    // Larger threshold to detect when we've reached a waypoint
+    const threshold = 0.02; // 2% of total path progress for reliable detection
+    
+    for (let i = 0; i < majorWaypoints.length; i++) {
+      const wp = majorWaypoints[i];
+      
+      // Skip if this waypoint doesn't have pause settings
+      if (!wp.waypoint || !wp.waypoint.pauseMode || wp.waypoint.pauseMode === 'none') {
+        continue;
+      }
+      
+      // If we just passed this waypoint and haven't paused at it yet
+      const justPassed = (rawProgress >= wp.progress && rawProgress < wp.progress + threshold);
+      const notAlreadyPaused = (wp.index !== this.animationState.pauseWaypointIndex);
+      
+      if (justPassed && notAlreadyPaused) {
+        console.log(`PAUSING at waypoint ${wp.index} (progress ${wp.progress.toFixed(3)})`, wp.waypoint);
+        
+        // Mark this waypoint as the one we're pausing at
+        this.animationState.pauseWaypointIndex = wp.index;
+        
+        // Pause the animation
+        this.animationState.isPaused = true;
+        this.animationState.pauseStartTime = performance.now();
+        
+        // Set end time for timed pause using this waypoint's pause time
+        this.animationState.pauseEndTime = 
+          this.animationState.pauseStartTime + (wp.waypoint.pauseTime || 1500);
+            
+        // Announce pause with duration
+        const pauseDuration = (wp.waypoint.pauseTime || 1500) / 1000;
+        this.announce(`Pausing at waypoint ${wp.index + 1} for ${pauseDuration} seconds`);
+        
+        // Force exact positioning at waypoint
+        this.animationState.progress = wp.progress;
+        break;
+      }
+    }
+  }
+  
+  // Kept for potential future use
+  continueAnimation() {
+    // Click-to-continue functionality removed
+  }
+  
+  // Easing functions
+  easeInQuad(t) { return t * t; }
+  easeOutQuad(t) { return t * (2 - t); }
+  
   calculateCurvature(path) {
     const curvatures = [];
     
@@ -1059,6 +1248,11 @@ class RoutePlotter {
     this.animationState.isPlaying = true;
     this.animationState.lastTime = performance.now();
     
+    // Reset any existing pause state
+    this.animationState.isPaused = false;
+    this.animationState.waitingForClick = false;
+    this.animationState.pauseWaypointIndex = -1;
+    
     // Update UI
     this.elements.playBtn.style.display = 'none';
     this.elements.pauseBtn.style.display = 'block';
@@ -1066,6 +1260,10 @@ class RoutePlotter {
   
   pause() {
     this.animationState.isPlaying = false;
+    
+    // Reset any existing pause state
+    this.animationState.isPaused = false;
+    this.animationState.waitingForClick = false;
     
     // Update UI
     this.elements.playBtn.style.display = 'block';
@@ -1122,7 +1320,7 @@ class RoutePlotter {
   autoSave() {
     try {
       const data = {
-        coordVersion: 4, // Version tracking for coordinate system changes
+        coordVersion: 6, // Version tracking for coordinate system changes
         waypoints: this.waypoints,
         styles: this.styles,
         animationState: this.animationState,
@@ -1144,7 +1342,7 @@ class RoutePlotter {
       const data = JSON.parse(raw);
       
       // Check version - if old version, clear and start fresh
-      const COORD_SYSTEM_VERSION = 4; // v4: Added label properties
+      const COORD_SYSTEM_VERSION = 6; // v6: Changed pause settings from global to per-waypoint
       if (!data.coordVersion || data.coordVersion < COORD_SYSTEM_VERSION) {
         console.log('Old data version detected (v' + (data.coordVersion || 1) + '), clearing saved data for v' + COORD_SYSTEM_VERSION);
         localStorage.removeItem('routePlotter_autosave');
@@ -1159,7 +1357,36 @@ class RoutePlotter {
         this.styles = { ...this.styles, ...data.styles };
       }
       if (data.animationState) {
-        this.animationState = { ...this.animationState, ...data.animationState };
+        const savedState = data.animationState;
+        
+        // Update animation state properties
+        this.animationState.mode = savedState.mode || 'constant-speed';
+        this.animationState.speed = savedState.speed || 200;
+        this.animationState.duration = savedState.duration || 5000;
+        this.animationState.playbackSpeed = savedState.playbackSpeed || 1;
+        
+        // Update UI to match loaded values
+        if (this.elements.animationMode) this.elements.animationMode.value = this.animationState.mode;
+        if (this.elements.animationSpeed) {
+          this.elements.animationSpeed.value = this.animationState.speed;
+          this.elements.animationSpeedValue.textContent = String(this.animationState.speed);
+        }
+        if (this.elements.animationDuration) {
+          const durationInSec = this.animationState.duration / 1000;
+          this.elements.animationDuration.value = String(durationInSec);
+          this.elements.animationDurationValue.textContent = durationInSec + 's';
+        }
+        
+        // Show/hide controls based on mode
+        if (this.elements.speedControl && this.elements.durationControl) {
+          if (this.animationState.mode === 'constant-speed') {
+            this.elements.speedControl.style.display = 'flex';
+            this.elements.durationControl.style.display = 'none';
+          } else {
+            this.elements.speedControl.style.display = 'none';
+            this.elements.durationControl.style.display = 'flex';
+          }
+        }
       }
       if (data.background) {
         this.background.overlay = data.background.overlay ?? this.background.overlay;
@@ -1195,6 +1422,30 @@ class RoutePlotter {
         const deltaTime = (currentTime - this.animationState.lastTime) * this.animationState.playbackSpeed;
         this.animationState.lastTime = currentTime;
         
+        // Handle waypoint pausing
+        if (this.animationState.isPaused) {
+          // Check if we need to resume after a timed pause
+          if (currentTime >= this.animationState.pauseEndTime) {
+            console.log('Pause time complete, resuming animation at', {
+              currentTime,
+              pauseEndTime: this.animationState.pauseEndTime,
+              timeElapsed: currentTime - this.animationState.pauseStartTime
+            });
+            
+            // Resume animation
+            this.animationState.isPaused = false;
+            this.animationState.pauseWaypointIndex = -1;
+            this.announce('Resuming animation');
+          } else {
+            // Still within pause duration
+            const remainingTime = this.animationState.pauseEndTime - currentTime;
+            if (remainingTime < 500) { // Log when we're close to resuming
+              console.log(`Still paused. Resuming in ${(remainingTime/1000).toFixed(1)}s`);
+            }
+            return; // Stay paused, don't update animation
+          }
+        }
+        
         // Update progress
         this.animationState.currentTime += deltaTime;
         
@@ -1203,7 +1454,22 @@ class RoutePlotter {
           this.animationState.progress = 1;
           this.pause();
         } else {
-          this.animationState.progress = this.animationState.currentTime / this.animationState.duration;
+          // Calculate raw linear progress
+          const rawProgress = this.animationState.currentTime / this.animationState.duration;
+          
+          // Get major waypoints and their positions
+          const majorWaypoints = this.getMajorWaypointPositions();
+          
+          if (majorWaypoints.length > 0) {
+            // Apply easing around waypoints with pause settings
+            this.animationState.progress = this.applyEasing(rawProgress, majorWaypoints);
+            
+            // Check if we just reached a major waypoint and should pause
+            this.checkForWaypointPause(rawProgress, majorWaypoints);
+          } else {
+            // No major waypoints, use raw progress
+            this.animationState.progress = rawProgress;
+          }
         }
         
         // Update timeline slider
