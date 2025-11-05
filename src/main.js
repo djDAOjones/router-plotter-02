@@ -1143,29 +1143,30 @@ class RoutePlotter {
         continue;
       }
       
-      // We only want to pause when we reach a specific waypoint
-      const waypointSegmentIndex = wp.index;
+      // Calculate exact position values for this waypoint
+      const exactWaypointProgress = wp.index / (this.waypoints.length - 1);
       
-      // Calculate distance to waypoint - positive if approaching, negative if passed
-      const distanceToWaypoint = wp.progress - rawProgress;
+      // Calculate precise distance from current position to waypoint
+      // Positive when approaching, negative when passed
+      const distanceToWaypoint = exactWaypointProgress - rawProgress;
       
       // Only log when we're getting close to the waypoint to avoid spam
-      if (Math.abs(distanceToWaypoint) < 0.1) {
+      if (Math.abs(distanceToWaypoint) < 0.05) {
         console.log(`Waypoint ${wp.index} check:`, {
-          waypointProgress: wp.progress.toFixed(4),
-          currentProgress: rawProgress.toFixed(4),
-          distanceTo: distanceToWaypoint.toFixed(4),
+          waypointProgress: exactWaypointProgress.toFixed(6),
+          currentProgress: rawProgress.toFixed(6),
+          distanceTo: distanceToWaypoint.toFixed(6),
           pauseMode: pauseMode,
           already: wp.index === this.animationState.pauseWaypointIndex
         });
       }
       
-      // Trigger pause just BEFORE reaching the waypoint
-      // We want to pause when we're very close but not yet passed
-      const approachingWaypoint = distanceToWaypoint > 0 && distanceToWaypoint < 0.01; // Within 1% before waypoint
+      // Use extremely small threshold to trigger exactly at the waypoint
+      // We want to pause exactly at (or just 0.0005 before) the waypoint
+      const exactlyAtWaypoint = Math.abs(rawProgress - exactWaypointProgress) < 0.0005;
       const notAlreadyPaused = wp.index !== this.animationState.pauseWaypointIndex; // Haven't paused here yet
       
-      const shouldPause = approachingWaypoint && notAlreadyPaused;
+      const shouldPause = exactlyAtWaypoint && notAlreadyPaused;
       
       if (shouldPause) {
         console.log(`PAUSING at waypoint ${wp.index} (progress ${wp.progress.toFixed(3)})`, wp.waypoint);
@@ -1185,10 +1186,11 @@ class RoutePlotter {
         const pauseDuration = (wp.waypoint.pauseTime || 1500) / 1000;
         this.announce(`Pausing at waypoint ${wp.index + 1} for ${pauseDuration} seconds`);
         
-        // Force exact positioning exactly AT the waypoint (not after)
+        // Force exact positioning precisely AT the waypoint
+        // Use exactWaypointProgress (not wp.progress) which is the normalized position (0-1)
         // This ensures the animation head is precisely at the waypoint when paused
-        this.animationState.progress = wp.progress;
-        this.animationState.currentTime = wp.progress * this.animationState.duration;
+        this.animationState.progress = exactWaypointProgress;
+        this.animationState.currentTime = exactWaypointProgress * this.animationState.duration;
         
         // Ensure the path head is exactly at the waypoint
         this.render();
@@ -1695,11 +1697,23 @@ class RoutePlotter {
     if (this.pathPoints.length > 0) {
       const currentProgress = this.animationState.progress;
       const totalPoints = this.pathPoints.length;
-      const currentPointIndex = Math.floor(totalPoints * currentProgress);
+      
+      // Use exact progress comparison instead of point index for more precision
       this.waypoints.forEach((waypoint, wpIndex) => {
         if (waypoint.isMajor) {
-          const waypointPointIndex = Math.floor((wpIndex / (this.waypoints.length - 1)) * totalPoints);
-          if (currentPointIndex >= waypointPointIndex && waypointPointIndex < currentPointIndex + 20) {
+          // Calculate normalized progress for this waypoint
+          const exactWaypointProgress = wpIndex / (this.waypoints.length - 1);
+          
+          // Show beacon EXACTLY when we reach a waypoint (not after)
+          // Use a small threshold to ensure reliable triggering
+          const atWaypoint = Math.abs(currentProgress - exactWaypointProgress) < 0.001;
+          
+          // Show beacon exactly when paused at this waypoint
+          const isPausedHere = this.animationState.isPaused && 
+                              this.animationState.pauseWaypointIndex === wpIndex;
+          
+          // Show beacon when either exactly at waypoint or paused at it
+          if (atWaypoint || isPausedHere) {
             // Convert waypoint to canvas coords for drawing beacon
             const wpCanvas = this.imageToCanvas(waypoint.imgX, waypoint.imgY);
             this.drawBeacon({ ...waypoint, x: wpCanvas.x, y: wpCanvas.y });
