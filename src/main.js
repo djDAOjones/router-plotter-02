@@ -1080,15 +1080,15 @@ class RoutePlotter {
     // Default to raw progress if no waypoints
     if (majorWaypoints.length === 0) return rawProgress;
     
-    // Easing parameters
-    const easeWindow = 0.1; // 10% of the total duration for easing (5% before, 5% after)
+    // Smaller easing window to reduce flickering
+    const easeWindow = 0.06; // 6% of total path (3% before, 3% after)
     
     // Check if we're near a major waypoint that has pause settings
     for (let i = 0; i < majorWaypoints.length; i++) {
       const wp = majorWaypoints[i];
       
       // Only apply easing if this waypoint has pause settings
-      if (!wp.waypoint || wp.waypoint.pauseMode === 'none') continue;
+      if (!wp.waypoint || !wp.waypoint.pauseMode || wp.waypoint.pauseMode === 'none') continue;
       
       const distance = Math.abs(rawProgress - wp.progress);
       
@@ -1101,14 +1101,21 @@ class RoutePlotter {
         const normalizedDistance = distance / (easeWindow / 2);
         
         if (approaching) {
-          // Ease in - decelerate as we approach
-          // Use ease-out function as we approach (slowing down)
-          const easeFactor = this.easeOutQuad(1 - normalizedDistance);
-          return wp.progress - (distance * easeFactor);
+          // Only apply easing if we're not too close to the waypoint
+          // to prevent flickering right at the waypoint
+          if (distance > 0.001) {
+            // Ease in - decelerate as we approach
+            // Use gentler ease-out cubic function
+            const easeFactor = this.easeOutCubic(1 - normalizedDistance);
+            return wp.progress - (distance * easeFactor);
+          } else {
+            // Very close to waypoint, just return raw progress to avoid flickering
+            return rawProgress;
+          }
         } else {
           // Ease out - accelerate as we leave
           // Use ease-in function as we leave (speeding up)
-          const easeFactor = this.easeInQuad(normalizedDistance);
+          const easeFactor = this.easeInCubic(normalizedDistance);
           return wp.progress + (distance * easeFactor);
         }
       }
@@ -1147,11 +1154,12 @@ class RoutePlotter {
         continue;
       }
       
-      // If we just passed this waypoint and haven't paused at it yet
-      const justPassed = (rawProgress >= wp.progress && rawProgress < wp.progress + threshold);
+      // If we're approaching or have just reached this waypoint and haven't paused at it yet
+      // Use threshold to anticipate the waypoint slightly early
+      const approachingOrAt = (rawProgress >= wp.progress - threshold && rawProgress <= wp.progress + 0.001);
       const notAlreadyPaused = (wp.index !== this.animationState.pauseWaypointIndex);
       
-      if (justPassed && notAlreadyPaused) {
+      if (approachingOrAt && notAlreadyPaused) {
         console.log(`PAUSING at waypoint ${wp.index} (progress ${wp.progress.toFixed(3)})`, wp.waypoint);
         
         // Mark this waypoint as the one we're pausing at
@@ -1169,8 +1177,13 @@ class RoutePlotter {
         const pauseDuration = (wp.waypoint.pauseTime || 1500) / 1000;
         this.announce(`Pausing at waypoint ${wp.index + 1} for ${pauseDuration} seconds`);
         
-        // Force exact positioning at waypoint
+        // Force exact positioning at waypoint - adjust the actual time as well
+        // to avoid flickering when resuming after pause
         this.animationState.progress = wp.progress;
+        this.animationState.currentTime = wp.progress * this.animationState.duration;
+        
+        // Ensure the path head is exactly at the waypoint
+        this.render();
         break;
       }
     }
@@ -1184,6 +1197,8 @@ class RoutePlotter {
   // Easing functions
   easeInQuad(t) { return t * t; }
   easeOutQuad(t) { return t * (2 - t); }
+  easeInCubic(t) { return t * t * t; }
+  easeOutCubic(t) { return 1 + (--t) * t * t; }
   
   calculateCurvature(path) {
     const curvatures = [];
