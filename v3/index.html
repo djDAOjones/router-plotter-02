@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Route Plotter v3</title>
+  <link rel="stylesheet" href="styles/main.css">
+</head>
+<body>
+  <!-- Application Container -->
+  <div id="app">
+    <!-- Header -->
+    <header class="header">
+      <h1 class="header-title">Route Plotter v3</h1>
+      <div class="header-controls">
+        <button id="help-btn" class="btn btn-secondary">Help</button>
+        <button id="clear-btn" class="btn btn-secondary">Clear</button>
+      </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="main">
+      <!-- Sidebar Controls -->
+      <aside class="sidebar">
+        <div class="control-group">
+          <h3>Path Style</h3>
+          <label>
+            <span>Color</span>
+            <input type="color" id="path-color" value="#FF6B6B">
+          </label>
+          <label>
+            <span>Thickness</span>
+            <input type="range" id="path-thickness" min="1" max="10" value="3" step="0.5">
+            <span id="path-thickness-value">3</span>
+          </label>
+        </div>
+        
+        <div class="control-group">
+          <h3>Waypoints</h3>
+          <label>
+            <span>Size</span>
+            <input type="range" id="waypoint-size" min="4" max="16" value="8" step="1">
+            <span id="waypoint-size-value">8</span>
+          </label>
+        </div>
+        
+        <div class="control-group">
+          <h3>Beacon</h3>
+          <label>
+            <span>Effect</span>
+            <select id="beacon-style">
+              <option value="none">None</option>
+              <option value="pulse" selected>Pulse</option>
+              <option value="ripple">Ripple</option>
+            </select>
+          </label>
+          <label>
+            <span>Color</span>
+            <input type="color" id="beacon-color" value="#FF6B6B">
+          </label>
+        </div>
+      </aside>
+      
+      <!-- Canvas for drawing -->
+      <canvas id="canvas"></canvas>
+      
+      <!-- Controls Panel -->
+      <div class="controls">
+        <div class="transport-controls">
+          <button id="skip-start-btn" class="btn btn-icon" title="Skip to Start">⏮</button>
+          <button id="play-btn" class="btn btn-icon btn-primary" title="Play">▶</button>
+          <button id="pause-btn" class="btn btn-icon btn-primary" style="display:none" title="Pause">⏸</button>
+          <button id="skip-end-btn" class="btn btn-icon" title="Skip to End">⏭</button>
+        </div>
+        
+        <div class="timeline">
+          <span id="current-time" class="time">0:00</span>
+          <input type="range" id="timeline-slider" class="timeline-slider" min="0" max="100" value="0" step="1">
+          <span id="total-time" class="time">0:00</span>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- Splash Screen (Hidden by default) -->
+  <div id="splash" class="splash-screen" style="display: none;">
+    <div class="splash-content">
+      <h2>Welcome to Route Plotter v3</h2>
+      
+      <div class="instructions">
+        <h3>🖱️ Creating Waypoints</h3>
+        <ul>
+          <li><strong>Click</strong> to add a <strong>major waypoint</strong> (visible marker)</li>
+          <li><strong>Shift+Click</strong> to add a <strong>minor waypoint</strong> (invisible, for path shaping)</li>
+          <li>Need at least 2 waypoints to create a path</li>
+        </ul>
+
+        <h3>▶️ Animation Controls</h3>
+        <ul>
+          <li>Use the play button or spacebar to play/pause</li>
+          <li>Drag the timeline slider to scrub through animation</li>
+        </ul>
+      </div>
+
+      <button id="splash-close" class="btn btn-primary">Get Started</button>
+      
+      <label class="checkbox-label">
+        <input type="checkbox" id="splash-dont-show">
+        Don't show this again
+      </label>
+    </div>
+  </div>
+
+  <script src="src/main.js" type="module"></script>
+</body>
+</html>

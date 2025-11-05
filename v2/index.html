@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Route Plotter v2.0</title>
+  <link rel="stylesheet" href="/src/styles/main.css">
+</head>
+<body>
+  <div id="app">
+    <div class="app-container">
+      <!-- Header -->
+      <header class="app-header">
+        <h1>Route Plotter v2.0</h1>
+        <div class="header-controls">
+          <button id="help-btn" class="btn btn-secondary">Help</button>
+          <button id="new-project" class="btn btn-secondary">New Project</button>
+          <button id="open-project" class="btn btn-secondary">Open</button>
+          <button id="save-project" class="btn btn-secondary">Save</button>
+          <button id="export-video" class="btn btn-primary">Export Video</button>
+        </div>
+      </header>
+
+      <!-- Main Content Area -->
+      <main class="app-main">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+          <!-- Track Tabs -->
+          <div class="track-tabs">
+            <button class="tab-btn active" data-track="path">Path</button>
+            <button class="tab-btn" data-track="camera">Camera</button>
+            <button class="tab-btn" data-track="labels">Labels</button>
+          </div>
+
+          <!-- Track Controls -->
+          <div class="track-controls">
+            <div id="path-controls" class="track-panel active">
+              <h3>Path Settings</h3>
+              <div class="control-group">
+                <label>Timing Mode:</label>
+                <select id="timing-mode">
+                  <option value="constantSpeed">Constant Speed</option>
+                  <option value="constantTime">Constant Time</option>
+                </select>
+              </div>
+              <div class="control-group">
+                <label>Path Style:</label>
+                <input type="color" id="path-color" value="#FF6B6B">
+                <input type="number" id="path-width" value="3" min="1" max="10">
+              </div>
+              <div class="control-group">
+                <label>Pause Mode:</label>
+                <select id="pause-mode">
+                  <option value="none">None</option>
+                  <option value="seconds">Seconds</option>
+                  <option value="click">Wait for Click</option>
+                </select>
+              </div>
+              
+              <!-- Waypoint List -->
+              <div class="waypoint-list">
+                <h4>Waypoints</h4>
+                <div id="waypoint-items"></div>
+              </div>
+            </div>
+
+            <div id="camera-controls" class="track-panel">
+              <h3>Camera Settings</h3>
+              <div class="control-group">
+                <label>Auto-frame:</label>
+                <input type="checkbox" id="camera-autoframe" checked>
+              </div>
+              <div class="control-group">
+                <label>Safety Margin:</label>
+                <input type="number" id="camera-margin" value="50" min="0" max="200">
+              </div>
+              <div class="control-group">
+                <label>Zoom Range:</label>
+                <input type="number" id="zoom-min" value="0.5" step="0.1" min="0.1" max="1">
+                <input type="number" id="zoom-max" value="2" step="0.1" min="1" max="5">
+              </div>
+            </div>
+
+            <div id="labels-controls" class="track-panel">
+              <h3>Label Settings</h3>
+              <div class="control-group">
+                <label>Display Mode:</label>
+                <select id="label-mode">
+                  <option value="showPersist">Show & Persist</option>
+                  <option value="showHide">Show & Hide</option>
+                  <option value="showFade">Show & Fade</option>
+                </select>
+              </div>
+              <div class="control-group">
+                <label>Anchor:</label>
+                <select id="label-anchor">
+                  <option value="auto">Auto</option>
+                  <option value="N">North</option>
+                  <option value="E">East</option>
+                  <option value="S">South</option>
+                  <option value="W">West</option>
+                </select>
+              </div>
+              
+              <!-- Label List -->
+              <div class="label-list">
+                <h4>Labels</h4>
+                <button id="add-label" class="btn btn-small">Add Label</button>
+                <div id="label-items"></div>
+              </div>
+            </div>
+          </div>
+        </aside>
+
+        <!-- Canvas Area -->
+        <div class="canvas-container">
+          <canvas id="main-canvas"></canvas>
+          <div class="canvas-overlay" id="interaction-overlay"></div>
+        </div>
+
+        <!-- Timeline -->
+        <div class="timeline-container">
+          <div class="timeline-controls">
+            <button id="play-btn" class="btn-icon">▶</button>
+            <button id="pause-btn" class="btn-icon" style="display:none">⏸</button>
+            <button id="start-btn" class="btn-icon">⏮</button>
+            <button id="end-btn" class="btn-icon">⏭</button>
+            <div class="speed-controls">
+              <button id="speed-05x" class="speed-btn">0.5x</button>
+              <button id="speed-1x" class="speed-btn active">1x</button>
+              <button id="speed-2x" class="speed-btn">2x</button>
+            </div>
+          </div>
+          <div class="timeline-scrubber">
+            <input type="range" id="timeline-slider" min="0" max="200" value="0">
+            <div class="timeline-time">
+              <span id="current-time">0:00</span> / <span id="total-time">0:00</span>
+            </div>
+          </div>
+        </div>
+      </main>
+    </div>
+  </div>
+
+  <script type="module" src="/src/main.ts"></script>
+</body>
+</html>
