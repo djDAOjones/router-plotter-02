@@ -81,14 +81,6 @@
               <option value="fill">Fill</option>
             </select>
           </label>
-          <label>
-            <span>Aspect</span>
-            <select id="bg-aspect" aria-label="Aspect ratio">
-              <option value="none" selected>None</option>
-              <option value="16:9">16:9</option>
-              <option value="4:3">4:3</option>
-            </select>
-          </label>
           <div style="display:flex; gap:0.5rem; align-items:center; margin-top:0.5rem;">
             <button id="bg-mask-btn" class="btn btn-secondary" aria-label="Upload mask image">Load Mask</button>
             <input id="bg-mask-upload" type="file" accept="image/png,image/jpeg" style="display:none" />
@@ -108,10 +100,18 @@
             <span id="waypoint-size-value">8</span>
           </label>
           <div id="waypoint-list" class="waypoint-list"></div>
-          
-          <!-- Waypoint editing panel (shown when waypoint selected) -->
-          <div id="waypoint-editor" style="display:none; margin-top: 1rem; padding: 1rem; background: #fff; border-radius: 4px;">
-            <h4 style="margin: 0 0 0.5rem 0; font-size: 0.875rem;">Edit Waypoint</h4>
+        </div>
+        
+      </aside>
+      
+      <!-- Canvas for drawing -->
+      <canvas id="canvas"></canvas>
+      
+      <!-- Right Sidebar - Waypoint Editor -->
+      <aside class="sidebar-right" role="complementary" aria-label="Waypoint editor">
+        <div id="waypoint-editor" style="display:none;">
+          <div class="control-group">
+            <h3>Edit Waypoint</h3>
             <label>
               <span>Color</span>
               <input type="color" id="segment-color" value="#FF6B6B">
@@ -154,11 +154,10 @@
             </label>
           </div>
         </div>
-        
+        <div id="waypoint-editor-placeholder" style="display: flex; align-items: center; justify-content: center; height: 100%; color: #999; text-align: center; padding: 2rem;">
+          <p>Select a waypoint to edit its properties</p>
+        </div>
       </aside>
-      
-      <!-- Canvas for drawing -->
-      <canvas id="canvas"></canvas>
       
       <!-- Controls Panel -->
       <div class="controls">

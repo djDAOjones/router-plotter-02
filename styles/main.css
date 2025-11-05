@@ -98,6 +98,18 @@ body {
   flex-shrink: 0;
 }
 
+/* Right Sidebar */
+.sidebar-right {
+  width: 280px;
+  min-width: 280px;
+  background: #f8f8f8;
+  border-left: 1px solid #e0e0e0;
+  padding: 1.5rem;
+  overflow-y: auto;
+  box-shadow: -2px 0 4px rgba(0,0,0,0.05);
+  flex-shrink: 0;
+}
+
 .control-group {
   margin-bottom: 2rem;
 }
@@ -212,10 +224,12 @@ body {
 
 /* Canvas */
 #canvas {
-  flex: 1;
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
   background: white;
   cursor: crosshair;
-  position: relative;
+  display: block;
 }
 
 #canvas.dragging {
@@ -227,7 +241,8 @@ body {
   position: absolute;
   bottom: 0;
   left: 280px;
-  right: 0;
+  right: 280px;
+  height: 80px;
   background: white;
   border-top: 1px solid #e0e0e0;
   padding: 1rem 2rem;
@@ -235,6 +250,7 @@ body {
   align-items: center;
   gap: 2rem;
   box-shadow: 0 -2px 4px rgba(0,0,0,0.05);
+  z-index: 10;
 }
 
 .transport-controls {

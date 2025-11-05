@@ -87,7 +87,6 @@ class RoutePlotter {
       mask: null,
       overlay: 0,        // -100 (black) .. 0 (none) .. 100 (white)
       fit: 'fit',        // 'fit' | 'fill'
-      aspect: 'none',    // 'none' | '16:9' | '4:3'
       maskMode: 'mask'   // 'mask' | 'cutout'
     };
     
@@ -129,6 +128,7 @@ class RoutePlotter {
       waypointList: document.getElementById('waypoint-list'),
       // Waypoint editor controls
       waypointEditor: document.getElementById('waypoint-editor'),
+      waypointEditorPlaceholder: document.getElementById('waypoint-editor-placeholder'),
       segmentColor: document.getElementById('segment-color'),
       segmentWidth: document.getElementById('segment-width'),
       segmentWidthValue: document.getElementById('segment-width-value'),
@@ -144,7 +144,6 @@ class RoutePlotter {
       bgOverlay: document.getElementById('bg-overlay'),
       bgOverlayValue: document.getElementById('bg-overlay-value'),
       bgFit: document.getElementById('bg-fit'),
-      bgAspect: document.getElementById('bg-aspect'),
       bgMaskBtn: document.getElementById('bg-mask-btn'),
       bgMaskUpload: document.getElementById('bg-mask-upload'),
       bgMaskMode: document.getElementById('bg-mask-mode')
@@ -180,8 +179,24 @@ class RoutePlotter {
   
   resizeCanvas() {
     const rect = this.canvas.getBoundingClientRect();
+    
+    // Controls panel is 80px tall and overlays the bottom of the canvas
+    // We need to subtract this from the usable height
+    const controlsHeight = 80;
+    
+    // Set canvas size to match the display size
     this.canvas.width = rect.width;
     this.canvas.height = rect.height;
+    
+    // Store the display dimensions for rendering calculations
+    // Account for the controls panel overlay
+    this.displayWidth = rect.width;
+    this.displayHeight = rect.height - controlsHeight;
+    
+    console.log('Canvas resized to:', rect.width, 'x', rect.height, '(usable height:', this.displayHeight + ')');
+    
+    // Re-render after resize
+    this.render();
   }
   
   setupEventListeners() {
@@ -370,11 +385,6 @@ class RoutePlotter {
       this.render();
       this.autoSave();
     });
-    this.elements.bgAspect.addEventListener('change', (e) => {
-      this.background.aspect = e.target.value;
-      this.render();
-      this.autoSave();
-    });
     this.elements.bgMaskMode.addEventListener('change', (e) => {
       this.background.maskMode = e.target.value;
       this.render();
@@ -470,8 +480,10 @@ class RoutePlotter {
       this.selectedWaypoint = clickedWaypoint;
       this.isDragging = true;
       this.hasDragged = false; // Reset drag flag
-      this.dragOffset.x = x - clickedWaypoint.x;
-      this.dragOffset.y = y - clickedWaypoint.y;
+      // Store canvas offset for smooth dragging
+      const wpCanvas = this.imageToCanvas(clickedWaypoint.imgX, clickedWaypoint.imgY);
+      this.dragOffset.x = x - wpCanvas.x;
+      this.dragOffset.y = y - wpCanvas.y;
       this.canvas.classList.add('dragging');
       this.updateWaypointList();
       event.preventDefault();
@@ -484,8 +496,12 @@ class RoutePlotter {
       const x = event.clientX - rect.left;
       const y = event.clientY - rect.top;
       
-      this.selectedWaypoint.x = x - this.dragOffset.x;
-      this.selectedWaypoint.y = y - this.dragOffset.y;
+      // Convert canvas position to image coordinates
+      const canvasX = x - this.dragOffset.x;
+      const canvasY = y - this.dragOffset.y;
+      const imgPos = this.canvasToImage(canvasX, canvasY);
+      this.selectedWaypoint.imgX = imgPos.x;
+      this.selectedWaypoint.imgY = imgPos.y;
       this.hasDragged = true; // Mark that actual dragging occurred
       
       this.calculatePath();
@@ -529,10 +545,13 @@ class RoutePlotter {
     // Determine if major or minor waypoint
     const isMajor = !event.shiftKey;
     
+    // Convert canvas coordinates to normalized image coordinates
+    const imgPos = this.canvasToImage(x, y);
+    
     // Add waypoint with default styling
     this.waypoints.push({
-      x,
-      y,
+      imgX: imgPos.x,
+      imgY: imgPos.y,
       isMajor,
       id: Date.now(), // Unique ID for list management
       // Segment styling (from this waypoint to next)
@@ -561,7 +580,9 @@ class RoutePlotter {
   findWaypointAt(x, y) {
     const threshold = 10; // pixels
     return this.waypoints.find(wp => {
-      const dist = Math.sqrt(Math.pow(wp.x - x, 2) + Math.pow(wp.y - y, 2));
+      // Convert waypoint from image coords to canvas coords for comparison
+      const wpCanvas = this.imageToCanvas(wp.imgX, wp.imgY);
+      const dist = Math.sqrt(Math.pow(wpCanvas.x - x, 2) + Math.pow(wpCanvas.y - y, 2));
       return dist <= threshold;
     });
   }
@@ -617,8 +638,10 @@ class RoutePlotter {
   
   updateWaypointEditor() {
     if (this.selectedWaypoint) {
-      // Show editor and populate values
+      // Show editor and hide placeholder
       this.elements.waypointEditor.style.display = 'block';
+      this.elements.waypointEditorPlaceholder.style.display = 'none';
+      
       this.elements.segmentColor.value = this.selectedWaypoint.segmentColor;
       this.elements.segmentWidth.value = this.selectedWaypoint.segmentWidth;
       this.elements.segmentWidthValue.textContent = this.selectedWaypoint.segmentWidth;
@@ -646,8 +669,9 @@ class RoutePlotter {
         this.elements.editorBeaconColor.value = this.styles.beaconColor;
       }
     } else {
-      // Hide editor
+      // Hide editor and show placeholder
       this.elements.waypointEditor.style.display = 'none';
+      this.elements.waypointEditorPlaceholder.style.display = 'flex';
     }
   }
   
@@ -666,6 +690,96 @@ class RoutePlotter {
     }
   }
   
+  getImageBounds() {
+    if (!this.background.image) return null;
+    
+    const img = this.background.image;
+    const iw = img.naturalWidth || img.width;
+    const ih = img.naturalHeight || img.height;
+    const cw = this.displayWidth || this.canvas.width;
+    const ch = this.displayHeight || this.canvas.height;
+    
+    if (this.background.fit === 'fit') {
+      // Fit: image is scaled to fit, may have letterboxing
+      const scale = Math.min(cw / iw, ch / ih);
+      const dw = Math.round(iw * scale);
+      const dh = Math.round(ih * scale);
+      const dx = Math.floor((cw - dw) / 2);
+      const dy = Math.floor((ch - dh) / 2);
+      return { x: dx, y: dy, w: dw, h: dh, scale };
+    } else {
+      // Fill: image fills canvas, may be cropped
+      const scale = Math.max(cw / iw, ch / ih);
+      return { x: 0, y: 0, w: cw, h: ch, scale };
+    }
+  }
+  
+  canvasToImage(canvasX, canvasY) {
+    const bounds = this.getImageBounds();
+    if (!bounds) {
+      // No image loaded - use normalized canvas coordinates
+      const cw = this.displayWidth || this.canvas.width || 1;
+      const ch = this.displayHeight || this.canvas.height || 1;
+      return { x: canvasX / cw, y: canvasY / ch };
+    }
+    
+    const img = this.background.image;
+    const iw = img.naturalWidth || img.width;
+    const ih = img.naturalHeight || img.height;
+    
+    if (this.background.fit === 'fit') {
+      // In fit mode, calculate position relative to displayed image
+      const relX = (canvasX - bounds.x) / bounds.w;
+      const relY = (canvasY - bounds.y) / bounds.h;
+      return { x: relX, y: relY };
+    } else {
+      // In fill mode, account for cropping
+      const cw = this.displayWidth || this.canvas.width;
+      const ch = this.displayHeight || this.canvas.height;
+      const sw = cw / bounds.scale;
+      const sh = ch / bounds.scale;
+      const sx = (iw - sw) / 2;
+      const sy = (ih - sh) / 2;
+      
+      const relX = (canvasX / cw) * (sw / iw) + (sx / iw);
+      const relY = (canvasY / ch) * (sh / ih) + (sy / ih);
+      return { x: relX, y: relY };
+    }
+  }
+  
+  imageToCanvas(imageX, imageY) {
+    const bounds = this.getImageBounds();
+    if (!bounds) {
+      // No image loaded - convert from normalized to canvas
+      const cw = this.displayWidth || this.canvas.width || 1;
+      const ch = this.displayHeight || this.canvas.height || 1;
+      return { x: imageX * cw, y: imageY * ch };
+    }
+    
+    const img = this.background.image;
+    const iw = img.naturalWidth || img.width;
+    const ih = img.naturalHeight || img.height;
+    
+    if (this.background.fit === 'fit') {
+      // In fit mode, scale from normalized to canvas
+      const canvasX = bounds.x + imageX * bounds.w;
+      const canvasY = bounds.y + imageY * bounds.h;
+      return { x: canvasX, y: canvasY };
+    } else {
+      // In fill mode, account for cropping
+      const cw = this.displayWidth || this.canvas.width;
+      const ch = this.displayHeight || this.canvas.height;
+      const sw = cw / bounds.scale;
+      const sh = ch / bounds.scale;
+      const sx = (iw - sw) / 2;
+      const sy = (ih - sh) / 2;
+      
+      const canvasX = ((imageX * iw - sx) / sw) * cw;
+      const canvasY = ((imageY * ih - sy) / sh) * ch;
+      return { x: canvasX, y: canvasY };
+    }
+  }
+  
   calculatePath() {
     this.pathPoints = [];
     
@@ -674,8 +788,14 @@ class RoutePlotter {
       return;
     }
     
+    // Convert waypoints from normalized image coords to canvas coords for path calculation
+    const canvasWaypoints = this.waypoints.map(wp => {
+      const canvasPos = this.imageToCanvas(wp.imgX, wp.imgY);
+      return { ...wp, x: canvasPos.x, y: canvasPos.y };
+    });
+    
     // Use Catmull-Rom splines for smooth curves with tension
-    this.pathPoints = CatmullRom.createPath(this.waypoints, 30, this.styles.pathTension);
+    this.pathPoints = CatmullRom.createPath(canvasWaypoints, 30, this.styles.pathTension);
     
     // Calculate total path length
     let totalLength = 0;
@@ -870,9 +990,12 @@ class RoutePlotter {
   }
   
   render() {
-    const { ctx, canvas } = this;
+    const { ctx } = this;
+    const cw = this.displayWidth || this.canvas.width;
+    const ch = this.displayHeight || this.canvas.height;
+    
     // Clear
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.clearRect(0, 0, cw, ch);
     
     // 1) Base image
     this.renderBackground(ctx);
@@ -903,67 +1026,58 @@ class RoutePlotter {
     if (!this.vectorCanvas) {
       this.vectorCanvas = document.createElement('canvas');
     }
-    if (this.vectorCanvas.width !== this.canvas.width || this.vectorCanvas.height !== this.canvas.height) {
-      this.vectorCanvas.width = this.canvas.width;
-      this.vectorCanvas.height = this.canvas.height;
+    const cw = this.displayWidth || this.canvas.width;
+    const ch = this.displayHeight || this.canvas.height;
+    if (this.vectorCanvas.width !== cw || this.vectorCanvas.height !== ch) {
+      this.vectorCanvas.width = cw;
+      this.vectorCanvas.height = ch;
     }
     return this.vectorCanvas;
   }
   
-  getAspectRect() {
-    const cw = this.canvas.width; const ch = this.canvas.height;
-    if (this.background.aspect === '16:9') {
-      const target = 16 / 9;
-      const cur = cw / ch;
-      if (cur > target) { // too wide, pillarbox
-        const w = Math.floor(ch * target); const x = Math.floor((cw - w) / 2);
-        return { x, y: 0, w, h: ch };
-      } else { // too tall, letterbox
-        const h = Math.floor(cw / target); const y = Math.floor((ch - h) / 2);
-        return { x: 0, y, w: cw, h };
-      }
-    } else if (this.background.aspect === '4:3') {
-      const target = 4 / 3;
-      const cur = cw / ch;
-      if (cur > target) {
-        const w = Math.floor(ch * target); const x = Math.floor((cw - w) / 2);
-        return { x, y: 0, w, h: ch };
-      } else {
-        const h = Math.floor(cw / target); const y = Math.floor((ch - h) / 2);
-        return { x: 0, y, w: cw, h };
-      }
-    }
-    return { x: 0, y: 0, w: cw, h: ch };
-  }
   
   renderBackground(ctx) {
     if (!this.background.image) return;
-    const rect = this.getAspectRect();
+    
     const img = this.background.image;
-    const iw = img.naturalWidth || img.width; const ih = img.naturalHeight || img.height;
-    const sxsy = { sx: 0, sy: 0, sw: iw, sh: ih };
-    let dx = rect.x, dy = rect.y, dw = rect.w, dh = rect.h;
-    const scaleFit = Math.min(rect.w / iw, rect.h / ih);
-    const scaleFill = Math.max(rect.w / iw, rect.h / ih);
+    const iw = img.naturalWidth || img.width;
+    const ih = img.naturalHeight || img.height;
+    const cw = this.displayWidth || this.canvas.width;
+    const ch = this.displayHeight || this.canvas.height;
+    
     if (this.background.fit === 'fit') {
-      dw = Math.round(iw * scaleFit); dh = Math.round(ih * scaleFit);
-      dx = Math.floor(rect.x + (rect.w - dw) / 2); dy = Math.floor(rect.y + (rect.h - dh) / 2);
-      ctx.drawImage(img, dx, dy, dw, dh);
-    } else { // fill
-      const sw = Math.round(rect.w / scaleFill); const sh = Math.round(rect.h / scaleFill);
-      const sx = Math.floor((iw - sw) / 2); const sy = Math.floor((ih - sh) / 2);
-      ctx.drawImage(img, sx, sy, sw, sh, rect.x, rect.y, rect.w, rect.h);
+      // Fit: scale image to fit entirely within canvas (may have letterboxing)
+      const scale = Math.min(cw / iw, ch / ih);
+      const dw = Math.round(iw * scale);
+      const dh = Math.round(ih * scale);
+      const dx = Math.floor((cw - dw) / 2);
+      const dy = Math.floor((ch - dh) / 2);
+      // Draw entire source image scaled to fit
+      ctx.drawImage(img, 0, 0, iw, ih, dx, dy, dw, dh);
+    } else {
+      // Fill: enlarge so smaller dimension fills the canvas, center and crop
+      const scale = Math.max(cw / iw, ch / ih);
+      // Calculate which portion of source to show
+      const sw = cw / scale;  // source width to show
+      const sh = ch / scale;  // source height to show
+      const sx = (iw - sw) / 2;  // center horizontally
+      const sy = (ih - sh) / 2;  // center vertically
+      // Draw cropped portion of source image to fill entire canvas
+      ctx.drawImage(img, sx, sy, sw, sh, 0, 0, cw, ch);
     }
   }
   
   renderOverlay(ctx) {
     const v = this.background.overlay;
     if (v === 0) return;
-    const rect = this.getAspectRect();
+    
+    const cw = this.displayWidth || this.canvas.width;
+    const ch = this.displayHeight || this.canvas.height;
+    
     ctx.save();
     ctx.globalAlpha = Math.min(Math.abs(v) / 100, 0.6);
     ctx.fillStyle = v < 0 ? '#000' : '#fff';
-    ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
+    ctx.fillRect(0, 0, cw, ch);
     ctx.restore();
   }
 
@@ -1020,7 +1134,9 @@ class RoutePlotter {
         if (waypoint.isMajor) {
           const waypointPointIndex = Math.floor((wpIndex / (this.waypoints.length - 1)) * totalPoints);
           if (currentPointIndex >= waypointPointIndex && waypointPointIndex < currentPointIndex + 20) {
-            this.drawBeacon(waypoint);
+            // Convert waypoint to canvas coords for drawing beacon
+            const wpCanvas = this.imageToCanvas(waypoint.imgX, waypoint.imgY);
+            this.drawBeacon({ ...waypoint, x: wpCanvas.x, y: wpCanvas.y });
           }
         }
       });
@@ -1029,6 +1145,8 @@ class RoutePlotter {
     // 6) UI handles (visible markers)
     this.waypoints.forEach(waypoint => {
       if (waypoint.isMajor) {
+        // Convert waypoint from image coords to canvas coords
+        const wpCanvas = this.imageToCanvas(waypoint.imgX, waypoint.imgY);
         const isSelected = waypoint === this.selectedWaypoint;
         const baseSize = waypoint.dotSize || this.styles.waypointSize;
         const size = isSelected ? baseSize * 1.3 : baseSize;
@@ -1036,7 +1154,7 @@ class RoutePlotter {
         this.ctx.fillStyle = waypoint.dotColor || waypoint.segmentColor;
         this.ctx.strokeStyle = isSelected ? '#4a90e2' : 'white';
         this.ctx.lineWidth = isSelected ? 3 : 2;
-        this.ctx.arc(waypoint.x, waypoint.y, size, 0, Math.PI * 2);
+        this.ctx.arc(wpCanvas.x, wpCanvas.y, size, 0, Math.PI * 2);
         this.ctx.fill();
         this.ctx.stroke();
       }
