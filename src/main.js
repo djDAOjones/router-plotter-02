@@ -133,6 +133,9 @@ class RoutePlotter {
       segmentWidth: document.getElementById('segment-width'),
       segmentWidthValue: document.getElementById('segment-width-value'),
       segmentStyle: document.getElementById('segment-style'),
+      dotColor: document.getElementById('dot-color'),
+      dotSize: document.getElementById('dot-size'),
+      dotSizeValue: document.getElementById('dot-size-value'),
       editorBeaconStyle: document.getElementById('editor-beacon-style'),
       editorBeaconColor: document.getElementById('editor-beacon-color'),
       // Background controls
@@ -268,6 +271,23 @@ class RoutePlotter {
       if (this.selectedWaypoint) {
         this.selectedWaypoint.segmentStyle = e.target.value;
         this.calculatePath();
+      }
+    });
+    
+    // Dot controls (major waypoints visible)
+    this.elements.dotColor.addEventListener('input', (e) => {
+      if (this.selectedWaypoint && this.selectedWaypoint.isMajor) {
+        this.selectedWaypoint.dotColor = e.target.value;
+        this.render();
+        this.autoSave();
+      }
+    });
+    this.elements.dotSize.addEventListener('input', (e) => {
+      if (this.selectedWaypoint && this.selectedWaypoint.isMajor) {
+        this.selectedWaypoint.dotSize = parseInt(e.target.value);
+        this.elements.dotSizeValue.textContent = e.target.value;
+        this.render();
+        this.autoSave();
       }
     });
     
@@ -603,14 +623,23 @@ class RoutePlotter {
       this.elements.segmentWidth.value = this.selectedWaypoint.segmentWidth;
       this.elements.segmentWidthValue.textContent = this.selectedWaypoint.segmentWidth;
       this.elements.segmentStyle.value = this.selectedWaypoint.segmentStyle;
+      // Dot fields
+      this.elements.dotColor.value = this.selectedWaypoint.dotColor || this.selectedWaypoint.segmentColor || this.styles.pathColor;
+      this.elements.dotSize.value = this.selectedWaypoint.dotSize || this.styles.waypointSize;
+      this.elements.dotSizeValue.textContent = this.elements.dotSize.value;
       // Beacon editor fields
       if (this.selectedWaypoint.isMajor) {
+        // Enable dot & beacon controls for major
+        this.elements.dotColor.disabled = false;
+        this.elements.dotSize.disabled = false;
         this.elements.editorBeaconStyle.disabled = false;
         this.elements.editorBeaconColor.disabled = false;
         this.elements.editorBeaconStyle.value = this.selectedWaypoint.beaconStyle || this.styles.beaconStyle;
         this.elements.editorBeaconColor.value = this.selectedWaypoint.beaconColor || this.styles.beaconColor;
       } else {
         // Minor waypoints: disable beacon controls
+        this.elements.dotColor.disabled = true;
+        this.elements.dotSize.disabled = true;
         this.elements.editorBeaconStyle.disabled = true;
         this.elements.editorBeaconColor.disabled = true;
         this.elements.editorBeaconStyle.value = 'none';
