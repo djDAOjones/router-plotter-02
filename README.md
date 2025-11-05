@@ -1,100 +1,135 @@
-# Route Plotter v3
+# Route Plotter v2.0
 
-An interactive route plotting and animation tool with WCAG 2.2 AAA compliance.
+A powerful web-based tool for creating animated route visualizations with waypoints, paths, and labels. No timeline editing or keyframe jargon required!
 
-🔗 **[Live Demo on GitHub Pages](https://djdaojones.github.io/router-plotter-02/)**
+## Features
 
-## 🚀 Features
+### MVP Version (Current)
+- ✨ **Interactive waypoint system** - Click to add, drag to move
+- 🎨 **Catmull-Rom spline interpolation** for smooth paths
+- ▶️ **Real-time preview** with playback controls
+- 🎯 **Path customization** - Color, width, style options
+- 📱 **Responsive design** for all devices
+- ♿ **WCAG 2.2 AAA compliant** (in progress)
 
-### Core Functionality
+### Coming Soon
+- 📹 WebM video export
+- 📦 Project save/load with ZIP packaging
+- 🏷️ Labels and annotations
+- 📷 Camera tracking and zoom
+- 🎭 Mask/reveal animations
+- 💾 Auto-save to IndexedDB
 
-- **Interactive Waypoint System**: Click to add major waypoints, Shift+click for minor waypoints
-- **Smooth Path Animation**: Catmull-Rom spline interpolation for natural curves
-- **Visual Effects**: Pulse and ripple beacon effects with customizable colors
-- **Auto-save**: Automatically preserves your work in localStorage
+## Quick Start
 
-### Styling & Customization
+### Installation
+```bash
+npm install
+```
 
-- 🎨 Line color picker and thickness control
-- 📏 Waypoint size adjustment
-- ✨ Beacon style selector (None/Pulse/Ripple)
-- 🏃 Animation speed control
+### Development
+```bash
+npm run dev
+```
 
-### Accessibility Features
+### Build for Production
+```bash
+npm run build
+```
 
-- **WCAG 2.2 AAA Compliant**: Meets highest accessibility standards
-- **Full Keyboard Navigation**: Complete functionality without mouse
-- **Screen Reader Support**: ARIA labels and live regions
-- **Responsive Design**: Works on all devices
+## Usage
 
-## 🎮 Controls
+1. **Upload an Image/Map**
+   - Click or drag-drop an image onto the upload area
+   - Supports PNG, JPG, JPEG formats
 
-### Mouse
+2. **Add Waypoints**
+   - **Click** on canvas - Add major waypoint
+   - **Shift+Click** - Add minor waypoint (for curves)
+   - **Drag** waypoints to reposition
 
-- **Click**: Add major waypoint
-- **Shift+Click**: Add minor waypoint  
-- **Drag**: Move waypoints
-- **Right-click**: Delete waypoint
+3. **Customize Path**
+   - Adjust color, width, and style
+   - Choose waypoint shapes and animations
+   - Set timing and pause modes
 
-### Keyboard
+4. **Preview Animation**
+   - Use playback controls to preview
+   - Adjust speed (0.25x to 8x)
+   - Scrub through timeline
 
-- **Space**: Play/pause animation
-- **Arrow Keys**: Nudge selected waypoint
-- **Delete**: Remove selected waypoint
-- **Escape**: Deselect waypoint
+## Keyboard Shortcuts
 
-## 📁 Project Structure
+| Key | Action |
+|-----|--------|
+| Space | Play/Pause |
+| Escape | Deselect waypoint |
+| Delete/Backspace | Delete selected waypoint |
+| Arrow Keys | Nudge selected waypoint (with Shift for larger moves) |
+| J/K/L | Backwards/Stop/Forward |
 
-```plaintext
-/
-├── index.html          # Main HTML file
+## Technical Stack
+
+- **TypeScript** - Type-safe development
+- **Vite** - Fast build tool
+- **Canvas 2D** - Hardware-accelerated rendering
+- **No frameworks** - Pure TypeScript for maximum performance
+
+## Project Structure
+
+```
+route-plotter-v2/
 ├── src/
-│   └── main.js        # Core application logic
-├── styles/
-│   └── main.css       # Styles with WCAG AAA colors
-├── package.json       # Project metadata
-└── README.md          # This file
+│   ├── app.ts          # Main application class
+│   ├── geometry.ts     # Catmull-Rom spline & math
+│   ├── renderer.ts     # Canvas rendering engine
+│   ├── timing.ts       # Animation controller
+│   ├── types.ts        # TypeScript definitions
+│   ├── project.ts      # Project management (future)
+│   ├── export.ts       # Export functionality (future)
+│   └── styles/
+│       └── main.css    # WCAG-compliant styles
+├── index.html          # Main HTML file
+├── package.json        # Dependencies
+└── vite.config.ts      # Vite configuration
 ```
 
-## 🌐 Live Demo
+## Browser Support
 
-Visit the live demo at: [https://djdaojones.github.io/router-plotter-02/](https://djdaojones.github.io/router-plotter-02/)
+- Chrome/Edge 90+
+- Firefox 88+
+- Safari 14+
+- Mobile browsers (iOS Safari, Chrome Mobile)
 
-## 💻 Development
+## Performance
 
-### Quick Start
+- **Target:** 60 FPS animation
+- **Floor:** 30 FPS minimum
+- **First Interactive:** ≤2.5s on 3G
+- **Export Parity:** ±40ms accuracy
 
-```bash
-# Clone the repository
-git clone https://github.com/djDAOjones/router-plotter-02.git
-cd router-plotter-02
+## Accessibility
 
-# Start local server
-python3 -m http.server 3000
-```
+Working towards WCAG 2.2 AAA compliance:
+- ✅ Keyboard navigation
+- ✅ Focus management
+- ✅ Touch targets ≥44px
+- ✅ 4.5:1 contrast ratios
+- 🚧 Screen reader support
+- 🚧 Reduced motion support
 
-Open [http://localhost:3000](http://localhost:3000) in your browser.
+## Contributing
 
-### Alternative Server Options
+This project is under active development. Contributions welcome!
 
-```bash
-# Using Node.js
-npx serve .
+## License
 
-# Using PHP
-php -S localhost:3000
-```
+[License information to be added]
 
-## 📝 License
+## Credits
 
-MIT License - see LICENSE file for details
+Created as part of the PARM Maps Encore project at the University of Nottingham.
 
-## 👤 Author
+---
 
-Joe Bell - University of Nottingham
-
-## 🔗 Links
-
-- **Repository**: [https://github.com/djDAOjones/router-plotter-02](https://github.com/djDAOjones/router-plotter-02)
-- **Live Demo**: [https://djdaojones.github.io/router-plotter-02/](https://djdaojones.github.io/router-plotter-02/)
-- **Issues**: [https://github.com/djDAOjones/router-plotter-02/issues](https://github.com/djDAOjones/router-plotter-02/issues)
+**Note:** This is the MVP version. Full feature set as described in the specification is under development.

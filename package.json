@@ -1,28 +1,16 @@
 {
-  "name": "route-plotter",
-  "version": "3.0.0",
-  "description": "Route Plotter v3 - Interactive path animation tool with WCAG 2.2 AAA compliance",
-  "main": "src/main.js",
+  "name": "route-plotter-v2",
+  "private": true,
+  "version": "2.0.0",
+  "type": "module",
   "scripts": {
-    "start": "python3 -m http.server 3000",
-    "dev": "python3 -m http.server 3000",
-    "serve": "npx serve ."
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit"
   },
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/djDAOjones/router-plotter-02.git"
-  },
-  "keywords": [
-    "route",
-    "plotter",
-    "animation",
-    "waypoint",
-    "path",
-    "canvas",
-    "accessibility",
-    "WCAG"
-  ],
-  "author": "Joe Bell",
-  "license": "MIT",
-  "homepage": "https://djdaojones.github.io/router-plotter-02/"
+  "devDependencies": {
+    "typescript": "^5.3.3",
+    "vite": "^5.0.10"
+  }
 }
