@@ -24,82 +24,60 @@
     <main class="main" id="main-content" role="main" aria-labelledby="app-title">
       <!-- Sidebar Controls -->
       <aside class="sidebar" role="complementary" aria-label="Controls panel">
-        <div class="control-group">
-          <h3>Animation</h3>
-          <label>
-            <span>Mode</span>
-            <select id="animation-mode">
-              <option value="constant-speed" selected>Constant Speed</option>
-              <option value="constant-time">Constant Time</option>
-            </select>
-          </label>
-          <label id="speed-control">
-            <span>Speed</span>
-            <input type="range" id="animation-speed" min="50" max="500" value="200" step="10">
-            <span id="animation-speed-value">200</span>
-          </label>
-          <label id="duration-control" style="display:none">
-            <span>Duration</span>
-            <input type="range" id="animation-duration" min="1" max="20" value="5" step="0.5">
-            <span id="animation-duration-value">5s</span>
-          </label>
-        </div>
-
-        <div class="control-group">
-          <h3>Path Style</h3>
-          <label>
-            <span>Color</span>
-            <input type="color" id="path-color" value="#FF6B6B">
-          </label>
-          <label>
-            <span>Thickness</span>
-            <input type="range" id="path-thickness" min="1" max="10" value="3" step="0.5">
-            <span id="path-thickness-value">3</span>
-          </label>
-          <label>
-            <span>Tension</span>
-            <input type="range" id="path-tension" min="0" max="100" value="75" step="5">
-            <span id="path-tension-value">75%</span>
-          </label>
-        </div>
-
-        <div class="control-group">
-          <h3>Background</h3>
-          <div style="display:flex; gap:0.5rem; align-items:center;">
-            <button id="bg-upload-btn" class="btn btn-secondary" aria-label="Upload background image">Upload Image</button>
-            <input id="bg-upload" type="file" accept="image/png,image/jpeg" style="display:none" />
-          </div>
-          <label>
-            <span>Overlay</span>
-            <input type="range" id="bg-overlay" min="-100" max="100" step="1" value="0" aria-label="Contrast overlay black to white">
-            <span id="bg-overlay-value">0</span>
-          </label>
-          <label>
-            <span>Fit</span>
-            <select id="bg-fit" aria-label="Background fit">
-              <option value="fit" selected>Fit</option>
-              <option value="fill">Fill</option>
-            </select>
-          </label>
-          <div style="display:flex; gap:0.5rem; align-items:center; margin-top:0.5rem;">
-            <button id="bg-mask-btn" class="btn btn-secondary" aria-label="Upload mask image">Load Mask</button>
-            <input id="bg-mask-upload" type="file" accept="image/png,image/jpeg" style="display:none" />
-            <select id="bg-mask-mode" aria-label="Mask mode">
-              <option value="mask" selected>Mask</option>
-              <option value="cutout">Cutout</option>
-            </select>
-          </div>
-          <p class="sr-only" id="bg-drop-hint">Tip: Drag an image onto the canvas to set the background.</p>
+        <!-- Tabs -->
+        <div class="sidebar-tabs">
+          <button class="tab-btn active" data-tab="waypoints">Waypoints</button>
+          <button class="tab-btn" data-tab="settings">Settings</button>
         </div>
         
-        <div class="control-group">
-          <h3>Waypoints</h3>
-          <label>
-            <span>Size</span>
-            <input type="range" id="waypoint-size" min="4" max="16" value="8" step="1">
-            <span id="waypoint-size-value">8</span>
-          </label>
-          <div id="waypoint-list" class="waypoint-list"></div>
+        <!-- Waypoints Tab -->
+        <div id="waypoints-tab" class="tab-content active">
+          <div class="control-group">
+            <h3>Waypoint List</h3>
+            <div id="waypoint-list" class="waypoint-list"></div>
+          </div>
+        </div>
+        
+        <!-- Settings Tab -->
+        <div id="settings-tab" class="tab-content">
+          <div class="control-group">
+            <h3>Motion</h3>
+            <label>
+              <span>Mode</span>
+              <select id="animation-mode">
+                <option value="constant-speed" selected>Constant Speed</option>
+                <option value="constant-time">Constant Time</option>
+              </select>
+            </label>
+            <label id="speed-control">
+              <span>Speed</span>
+              <input type="range" id="animation-speed" min="50" max="500" value="200" step="10">
+              <span id="animation-speed-value">200</span>
+            </label>
+            <label id="duration-control" style="display:none">
+              <span>Duration</span>
+              <input type="range" id="animation-duration" min="1" max="20" value="5" step="0.5">
+              <span id="animation-duration-value">5s</span>
+            </label>
+          </div>
+
+          <div class="control-group">
+            <h3>Background</h3>
+            <div style="display:flex; gap:0.5rem; align-items:center;">
+              <button id="bg-upload-btn" class="btn btn-secondary" aria-label="Upload background image">Upload Image</button>
+              <input id="bg-upload" type="file" accept="image/png,image/jpeg" style="display:none" />
+            </div>
+            <label>
+              <span>Overlay</span>
+              <input type="range" id="bg-overlay" min="-100" max="100" step="1" value="0" aria-label="Contrast overlay black to white">
+              <span id="bg-overlay-value">0</span>
+            </label>
+            <div style="display:flex; gap:0.5rem; align-items:center; margin-top:0.5rem;">
+              <span>Display:</span>
+              <button id="bg-fit-toggle" class="btn btn-secondary" data-mode="fit" aria-label="Toggle fit/fill mode">Fit</button>
+            </div>
+            <p class="sr-only" id="bg-drop-hint">Tip: Drag an image onto the canvas to set the background.</p>
+          </div>
         </div>
         
       </aside>
@@ -112,6 +90,8 @@
         <div id="waypoint-editor" style="display:none;">
           <div class="control-group">
             <h3>Edit Waypoint</h3>
+            
+            <h4 style="font-size: 0.875rem; margin: 1rem 0 0.5rem 0; color: #666;">Path Style</h4>
             <label>
               <span>Color</span>
               <input type="color" id="segment-color" value="#FF6B6B">
@@ -131,6 +111,13 @@
               </select>
             </label>
             <label>
+              <span>Tension</span>
+              <input type="range" id="path-tension" min="0" max="100" value="75" step="5">
+              <span id="path-tension-value">75%</span>
+            </label>
+            
+            <h4 style="font-size: 0.875rem; margin: 1rem 0 0.5rem 0; color: #666;">Waypoint Dot</h4>
+            <label>
               <span>Dot Color</span>
               <input type="color" id="dot-color" value="#FF6B6B">
             </label>
@@ -139,9 +126,15 @@
               <input type="range" id="dot-size" min="4" max="16" value="8" step="1" aria-label="Dot size">
               <span id="dot-size-value">8</span>
             </label>
-            <hr style="border:none;border-top:1px solid #eee;margin:0.75rem 0;" />
             <label>
-              <span>Beacon Effect</span>
+              <span>Waypoint Size</span>
+              <input type="range" id="waypoint-size" min="4" max="16" value="8" step="1">
+              <span id="waypoint-size-value">8</span>
+            </label>
+            
+            <h4 style="font-size: 0.875rem; margin: 1rem 0 0.5rem 0; color: #666;">Beacon Effect</h4>
+            <label>
+              <span>Effect</span>
               <select id="editor-beacon-style">
                 <option value="none">None</option>
                 <option value="pulse">Pulse</option>
@@ -149,7 +142,7 @@
               </select>
             </label>
             <label>
-              <span>Beacon Color</span>
+              <span>Color</span>
               <input type="color" id="editor-beacon-color" value="#FF6B6B">
             </label>
           </div>

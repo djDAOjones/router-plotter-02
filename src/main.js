@@ -15,7 +15,7 @@ class CatmullRom {
     };
   }
   
-  static createPath(waypoints, pointsPerSegment = 30, tension = 0.5) {
+  static createPath(waypoints, pointsPerSegment = 30, defaultTension = 0.5) {
     if (waypoints.length < 2) return [];
     
     const path = [];
@@ -26,9 +26,12 @@ class CatmullRom {
       const p2 = waypoints[i + 1];
       const p3 = waypoints[Math.min(waypoints.length - 1, i + 2)];
       
+      // Use per-segment tension from the starting waypoint, or default
+      const segmentTension = p1.segmentTension ?? defaultTension;
+      
       for (let j = 0; j < pointsPerSegment; j++) {
         const t = j / pointsPerSegment;
-        path.push(CatmullRom.interpolate(p0, p1, p2, p3, t, tension));
+        path.push(CatmullRom.interpolate(p0, p1, p2, p3, t, segmentTension));
       }
     }
     
@@ -84,10 +87,8 @@ class RoutePlotter {
     // Background layer state
     this.background = {
       image: null,
-      mask: null,
       overlay: 0,        // -100 (black) .. 0 (none) .. 100 (white)
-      fit: 'fit',        // 'fit' | 'fill'
-      maskMode: 'mask'   // 'mask' | 'cutout'
+      fit: 'fit'         // 'fit' | 'fill'
     };
     
     // Offscreen canvas for vector layer compositing
@@ -108,13 +109,8 @@ class RoutePlotter {
       splashClose: document.getElementById('splash-close'),
       splashDontShow: document.getElementById('splash-dont-show'),
       // Style controls
-      pathColor: document.getElementById('path-color'),
-      pathThickness: document.getElementById('path-thickness'),
-      pathThicknessValue: document.getElementById('path-thickness-value'),
       waypointSize: document.getElementById('waypoint-size'),
       waypointSizeValue: document.getElementById('waypoint-size-value'),
-      beaconStyle: document.getElementById('beacon-style'),
-      beaconColor: document.getElementById('beacon-color'),
       // New controls
       animationMode: document.getElementById('animation-mode'),
       animationSpeed: document.getElementById('animation-speed'),
@@ -143,10 +139,7 @@ class RoutePlotter {
       bgUpload: document.getElementById('bg-upload'),
       bgOverlay: document.getElementById('bg-overlay'),
       bgOverlayValue: document.getElementById('bg-overlay-value'),
-      bgFit: document.getElementById('bg-fit'),
-      bgMaskBtn: document.getElementById('bg-mask-btn'),
-      bgMaskUpload: document.getElementById('bg-mask-upload'),
-      bgMaskMode: document.getElementById('bg-mask-mode')
+      bgFitToggle: document.getElementById('bg-fit-toggle')
     };
     
     this.init();
@@ -168,6 +161,11 @@ class RoutePlotter {
     // Load autosave if present
     this.loadAutosave();
     
+    // Load default image if no background image is present (for dev testing)
+    if (!this.background.image) {
+      this.loadDefaultImage();
+    }
+    
     // Initial render
     this.render();
     
@@ -184,22 +182,50 @@ class RoutePlotter {
     // We need to subtract this from the usable height
     const controlsHeight = 80;
     
-    // Set canvas size to match the display size
-    this.canvas.width = rect.width;
-    this.canvas.height = rect.height;
+    // Use high DPI for better quality (aim for ~4K resolution)
+    const dpr = window.devicePixelRatio || 1;
+    const scale = Math.min(dpr * 2, 3); // Cap at 3x for performance
     
-    // Store the display dimensions for rendering calculations
+    // Set canvas pixel dimensions (high resolution)
+    this.canvas.width = rect.width * scale;
+    this.canvas.height = rect.height * scale;
+    
+    // Store scale for rendering
+    this.canvasScale = scale;
+    
+    // Scale context to match (this happens after canvas resize, so it's reset)
+    this.ctx.scale(scale, scale);
+    
+    // Disable image smoothing for crisp rendering
+    this.ctx.imageSmoothingEnabled = false;
+    
+    // Store the display dimensions for rendering calculations (CSS pixels)
     // Account for the controls panel overlay
     this.displayWidth = rect.width;
     this.displayHeight = rect.height - controlsHeight;
     
-    console.log('Canvas resized to:', rect.width, 'x', rect.height, '(usable height:', this.displayHeight + ')');
+    console.log('Canvas resized to:', rect.width, 'x', rect.height, 'at', scale + 'x scale', '(usable height:', this.displayHeight + ')');
     
     // Re-render after resize
     this.render();
   }
   
   setupEventListeners() {
+    // Sidebar tabs
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        const tabName = e.target.dataset.tab;
+        
+        // Update tab buttons
+        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+        e.target.classList.add('active');
+        
+        // Update tab content
+        document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+        document.getElementById(`${tabName}-tab`).classList.add('active');
+      });
+    });
+    
     // Canvas events for waypoint interaction
     this.canvas.addEventListener('mousedown', (e) => this.handleMouseDown(e));
     this.canvas.addEventListener('mousemove', (e) => this.handleMouseMove(e));
@@ -213,6 +239,10 @@ class RoutePlotter {
       if (file && file.type.startsWith('image/')) {
         this.loadImageFile(file).then((img) => {
           this.background.image = img;
+          // Recalculate path with proper image bounds
+          if (this.waypoints.length >= 2) {
+            this.calculatePath();
+          }
           this.render();
           this.autoSave();
           this.announce('Background image loaded');
@@ -237,18 +267,20 @@ class RoutePlotter {
     });
     
     // Style controls
-    this.elements.pathColor.addEventListener('input', (e) => {
-      this.styles.pathColor = e.target.value;
-    });
-    
-    this.elements.pathThickness.addEventListener('input', (e) => {
-      this.styles.pathThickness = parseFloat(e.target.value);
-      this.elements.pathThicknessValue.textContent = e.target.value;
-    });
-    
+    // Waypoint size in waypoint editor (per-waypoint)
     this.elements.waypointSize.addEventListener('input', (e) => {
-      this.styles.waypointSize = parseInt(e.target.value);
-      this.elements.waypointSizeValue.textContent = e.target.value;
+      if (this.selectedWaypoint) {
+        const size = parseInt(e.target.value);
+        this.selectedWaypoint.waypointSize = size;
+        // Also update dotSize to keep them in sync
+        this.selectedWaypoint.dotSize = size;
+        this.elements.waypointSizeValue.textContent = e.target.value;
+        // Update dot size control to match
+        this.elements.dotSize.value = e.target.value;
+        this.elements.dotSizeValue.textContent = e.target.value;
+        this.render();
+        this.autoSave();
+      }
     });
     
     // Per-waypoint beacon edits (only apply to major waypoints)
@@ -286,20 +318,33 @@ class RoutePlotter {
       if (this.selectedWaypoint) {
         this.selectedWaypoint.segmentStyle = e.target.value;
         this.calculatePath();
+        this.autoSave();
       }
     });
     
-    // Dot controls (major waypoints visible)
+    // Path tension in waypoint editor (per-waypoint)
+    this.elements.pathTension.addEventListener('input', (e) => {
+      if (this.selectedWaypoint) {
+        this.selectedWaypoint.segmentTension = parseInt(e.target.value) / 100;
+        this.elements.pathTensionValue.textContent = e.target.value + '%';
+        this.calculatePath();
+        this.autoSave();
+      }
+    });
+    
+    // Dot controls (apply to selected waypoint)
     this.elements.dotColor.addEventListener('input', (e) => {
-      if (this.selectedWaypoint && this.selectedWaypoint.isMajor) {
+      if (this.selectedWaypoint) {
         this.selectedWaypoint.dotColor = e.target.value;
         this.render();
         this.autoSave();
       }
     });
     this.elements.dotSize.addEventListener('input', (e) => {
-      if (this.selectedWaypoint && this.selectedWaypoint.isMajor) {
+      if (this.selectedWaypoint) {
         this.selectedWaypoint.dotSize = parseInt(e.target.value);
+        // Also update waypointSize to keep them in sync
+        this.selectedWaypoint.waypointSize = parseInt(e.target.value);
         this.elements.dotSizeValue.textContent = e.target.value;
         this.render();
         this.autoSave();
@@ -342,12 +387,6 @@ class RoutePlotter {
       this.updateTimeDisplay();
     });
     
-    // Path tension control
-    this.elements.pathTension.addEventListener('input', (e) => {
-      this.styles.pathTension = parseInt(e.target.value) / 100;
-      this.elements.pathTensionValue.textContent = e.target.value + '%';
-      this.calculatePath();
-    });
     
     // Background controls
     this.elements.bgUploadBtn.addEventListener('click', () => this.elements.bgUpload.click());
@@ -356,21 +395,13 @@ class RoutePlotter {
       if (file) {
         this.loadImageFile(file).then((img) => {
           this.background.image = img;
+          // Recalculate path with proper image bounds
+          if (this.waypoints.length >= 2) {
+            this.calculatePath();
+          }
           this.render();
           this.autoSave();
           this.announce('Background image loaded');
-        });
-      }
-    });
-    this.elements.bgMaskBtn.addEventListener('click', () => this.elements.bgMaskUpload.click());
-    this.elements.bgMaskUpload.addEventListener('change', (e) => {
-      const file = e.target.files?.[0];
-      if (file) {
-        this.loadImageFile(file).then((img) => {
-          this.background.mask = img;
-          this.render();
-          this.autoSave();
-          this.announce('Mask loaded');
         });
       }
     });
@@ -380,13 +411,21 @@ class RoutePlotter {
       this.render();
       this.autoSave();
     });
-    this.elements.bgFit.addEventListener('change', (e) => {
-      this.background.fit = e.target.value;
-      this.render();
-      this.autoSave();
-    });
-    this.elements.bgMaskMode.addEventListener('change', (e) => {
-      this.background.maskMode = e.target.value;
+    // Toggle fit/fill button
+    this.elements.bgFitToggle.addEventListener('click', (e) => {
+      const currentMode = this.background.fit;
+      const newMode = currentMode === 'fit' ? 'fill' : 'fit';
+      this.background.fit = newMode;
+      
+      // Update button text and data attribute
+      e.target.textContent = newMode === 'fit' ? 'Fit' : 'Fill';
+      e.target.dataset.mode = newMode;
+      
+      console.log('Fit mode changed to:', newMode);
+      // Recalculate path since waypoints need to be repositioned
+      if (this.waypoints.length >= 2) {
+        this.calculatePath();
+      }
       this.render();
       this.autoSave();
     });
@@ -548,22 +587,40 @@ class RoutePlotter {
     // Convert canvas coordinates to normalized image coordinates
     const imgPos = this.canvasToImage(x, y);
     
-    // Add waypoint with default styling
+    // Inherit properties from previous waypoint, or use defaults
+    const previousWaypoint = this.waypoints[this.waypoints.length - 1];
+    const defaultProps = {
+      segmentColor: this.styles.pathColor,
+      segmentWidth: this.styles.pathThickness,
+      segmentStyle: 'solid',
+      segmentTension: this.styles.pathTension,
+      dotColor: this.styles.pathColor,
+      dotSize: this.styles.waypointSize,
+      waypointSize: this.styles.waypointSize,
+      beaconStyle: isMajor ? this.styles.beaconStyle : 'none',
+      beaconColor: isMajor ? this.styles.beaconColor : this.styles.beaconColor
+    };
+    
+    // If there's a previous waypoint, inherit its properties
+    const inheritedProps = previousWaypoint ? {
+      segmentColor: previousWaypoint.segmentColor,
+      segmentWidth: previousWaypoint.segmentWidth,
+      segmentStyle: previousWaypoint.segmentStyle,
+      segmentTension: previousWaypoint.segmentTension ?? this.styles.pathTension,
+      dotColor: previousWaypoint.dotColor,
+      dotSize: previousWaypoint.dotSize,
+      waypointSize: previousWaypoint.waypointSize ?? previousWaypoint.dotSize,
+      beaconStyle: isMajor ? (previousWaypoint.beaconStyle || this.styles.beaconStyle) : 'none',
+      beaconColor: previousWaypoint.beaconColor || this.styles.beaconColor
+    } : defaultProps;
+    
+    // Add waypoint
     this.waypoints.push({
       imgX: imgPos.x,
       imgY: imgPos.y,
       isMajor,
       id: Date.now(), // Unique ID for list management
-      // Segment styling (from this waypoint to next)
-      segmentColor: this.styles.pathColor,
-      segmentWidth: this.styles.pathThickness,
-      segmentStyle: 'solid',
-      // Dot styling (majors visible)
-      dotColor: this.styles.pathColor,
-      dotSize: this.styles.waypointSize,
-      // Per-waypoint beacon settings (majors only)
-      beaconStyle: isMajor ? this.styles.beaconStyle : 'none',
-      beaconColor: isMajor ? this.styles.beaconColor : this.styles.beaconColor
+      ...inheritedProps
     });
     
     // Recalculate path if we have enough waypoints
@@ -646,10 +703,17 @@ class RoutePlotter {
       this.elements.segmentWidth.value = this.selectedWaypoint.segmentWidth;
       this.elements.segmentWidthValue.textContent = this.selectedWaypoint.segmentWidth;
       this.elements.segmentStyle.value = this.selectedWaypoint.segmentStyle;
+      // Path tension (per-waypoint)
+      const tension = (this.selectedWaypoint.segmentTension ?? this.styles.pathTension) * 100;
+      this.elements.pathTension.value = Math.round(tension);
+      this.elements.pathTensionValue.textContent = Math.round(tension) + '%';
       // Dot fields
       this.elements.dotColor.value = this.selectedWaypoint.dotColor || this.selectedWaypoint.segmentColor || this.styles.pathColor;
       this.elements.dotSize.value = this.selectedWaypoint.dotSize || this.styles.waypointSize;
       this.elements.dotSizeValue.textContent = this.elements.dotSize.value;
+      // Waypoint size (per-waypoint)
+      this.elements.waypointSize.value = this.selectedWaypoint.waypointSize ?? this.selectedWaypoint.dotSize ?? this.styles.waypointSize;
+      this.elements.waypointSizeValue.textContent = this.elements.waypointSize.value;
       // Beacon editor fields
       if (this.selectedWaypoint.isMajor) {
         // Enable dot & beacon controls for major
@@ -731,7 +795,8 @@ class RoutePlotter {
       // In fit mode, calculate position relative to displayed image
       const relX = (canvasX - bounds.x) / bounds.w;
       const relY = (canvasY - bounds.y) / bounds.h;
-      return { x: relX, y: relY };
+      // Clamp to 0-1 range
+      return { x: Math.max(0, Math.min(1, relX)), y: Math.max(0, Math.min(1, relY)) };
     } else {
       // In fill mode, account for cropping
       const cw = this.displayWidth || this.canvas.width;
@@ -743,7 +808,8 @@ class RoutePlotter {
       
       const relX = (canvasX / cw) * (sw / iw) + (sx / iw);
       const relY = (canvasY / ch) * (sh / ih) + (sy / ih);
-      return { x: relX, y: relY };
+      // Clamp to 0-1 range
+      return { x: Math.max(0, Math.min(1, relX)), y: Math.max(0, Math.min(1, relY)) };
     }
   }
   
@@ -791,11 +857,20 @@ class RoutePlotter {
     // Convert waypoints from normalized image coords to canvas coords for path calculation
     const canvasWaypoints = this.waypoints.map(wp => {
       const canvasPos = this.imageToCanvas(wp.imgX, wp.imgY);
+      // Safety check
+      if (!isFinite(canvasPos.x) || !isFinite(canvasPos.y)) {
+        console.warn('Invalid waypoint canvas position:', wp, canvasPos);
+        return { ...wp, x: 0, y: 0 }; // Fallback to origin
+      }
       return { ...wp, x: canvasPos.x, y: canvasPos.y };
     });
     
     // Use Catmull-Rom splines for smooth curves with tension
-    this.pathPoints = CatmullRom.createPath(canvasWaypoints, 30, this.styles.pathTension);
+    // Higher resolution for smoother curves (100 points per segment)
+    const rawPath = CatmullRom.createPath(canvasWaypoints, 100, this.styles.pathTension);
+    
+    // Reparameterize by arc length with corner slowing for realistic motion
+    this.pathPoints = this.reparameterizeWithCornerSlowing(rawPath, 2); // 2 pixels between points
     
     // Calculate total path length
     let totalLength = 0;
@@ -813,6 +888,119 @@ class RoutePlotter {
     
     // Update total time display
     this.updateTimeDisplay();
+  }
+  
+  reparameterizeWithCornerSlowing(rawPath, targetSpacing = 2) {
+    if (rawPath.length < 2) return rawPath;
+    
+    // Calculate curvature at each point
+    const curvatures = this.calculateCurvature(rawPath);
+    
+    // Build distance array with velocity modulation based on curvature
+    const distances = [0];
+    let totalDistance = 0;
+    
+    for (let i = 1; i < rawPath.length; i++) {
+      const dx = rawPath[i].x - rawPath[i-1].x;
+      const dy = rawPath[i].y - rawPath[i-1].y;
+      const physicalDist = Math.sqrt(dx * dx + dy * dy);
+      
+      // Calculate velocity factor based on curvature
+      // High curvature = slower, low curvature = faster
+      const curvature = curvatures[i];
+      const maxCurvature = 0.1; // Tune this for more/less slowing
+      const minSpeed = 0.4; // Minimum 40% speed at tight corners
+      const velocityFactor = Math.max(minSpeed, 1 - (curvature / maxCurvature) * (1 - minSpeed));
+      
+      // Adjust distance based on velocity (slower = more time = more "distance" in time-space)
+      const adjustedDist = physicalDist / velocityFactor;
+      totalDistance += adjustedDist;
+      distances.push(totalDistance);
+    }
+    
+    // Create evenly-spaced points in adjusted distance space
+    const evenPath = [];
+    const numPoints = Math.floor(totalDistance / targetSpacing);
+    
+    for (let i = 0; i <= numPoints; i++) {
+      const targetDist = (i / numPoints) * totalDistance;
+      
+      // Find the segment containing this distance
+      let segmentIdx = 0;
+      for (let j = 1; j < distances.length; j++) {
+        if (distances[j] >= targetDist) {
+          segmentIdx = j - 1;
+          break;
+        }
+      }
+      
+      // Interpolate within the segment
+      const segStart = distances[segmentIdx];
+      const segEnd = distances[segmentIdx + 1];
+      const segLength = segEnd - segStart;
+      const t = segLength > 0 ? (targetDist - segStart) / segLength : 0;
+      
+      const p1 = rawPath[segmentIdx];
+      const p2 = rawPath[segmentIdx + 1] || p1;
+      
+      evenPath.push({
+        x: p1.x + (p2.x - p1.x) * t,
+        y: p1.y + (p2.y - p1.y) * t
+      });
+    }
+    
+    return evenPath;
+  }
+  
+  calculateCurvature(path) {
+    const curvatures = [];
+    
+    for (let i = 0; i < path.length; i++) {
+      if (i === 0 || i === path.length - 1) {
+        // No curvature at endpoints
+        curvatures.push(0);
+        continue;
+      }
+      
+      // Use three points to estimate curvature
+      const p0 = path[i - 1];
+      const p1 = path[i];
+      const p2 = path[i + 1];
+      
+      // Calculate vectors
+      const v1x = p1.x - p0.x;
+      const v1y = p1.y - p0.y;
+      const v2x = p2.x - p1.x;
+      const v2y = p2.y - p1.y;
+      
+      // Calculate lengths
+      const len1 = Math.sqrt(v1x * v1x + v1y * v1y);
+      const len2 = Math.sqrt(v2x * v2x + v2y * v2y);
+      
+      if (len1 === 0 || len2 === 0) {
+        curvatures.push(0);
+        continue;
+      }
+      
+      // Normalize vectors
+      const n1x = v1x / len1;
+      const n1y = v1y / len1;
+      const n2x = v2x / len2;
+      const n2y = v2y / len2;
+      
+      // Calculate angle change (cross product gives sin of angle)
+      const crossProduct = n1x * n2y - n1y * n2x;
+      const dotProduct = n1x * n2x + n1y * n2y;
+      const angle = Math.atan2(crossProduct, dotProduct);
+      
+      // Curvature is angle change divided by average segment length
+      const avgLen = (len1 + len2) / 2;
+      const curvature = avgLen > 0 ? Math.abs(angle) / avgLen : 0;
+      
+      curvatures.push(curvature);
+    }
+    
+    return curvatures;
   }
   
   play() {
@@ -884,20 +1072,14 @@ class RoutePlotter {
   autoSave() {
     try {
       const data = {
+        coordVersion: 3, // Version tracking for coordinate system changes
         waypoints: this.waypoints,
         styles: this.styles,
-        animationState: {
-          mode: this.animationState.mode,
-          speed: this.animationState.speed,
-          duration: this.animationState.duration
-        },
+        animationState: this.animationState,
         background: {
           overlay: this.background.overlay,
-          fit: this.background.fit,
-          aspect: this.background.aspect,
-          maskMode: this.background.maskMode
-        },
-        timestamp: Date.now()
+          fit: this.background.fit
+        }
       };
       localStorage.setItem('routePlotter_autosave', JSON.stringify(data));
     } catch (e) {
@@ -910,8 +1092,18 @@ class RoutePlotter {
       const raw = localStorage.getItem('routePlotter_autosave');
       if (!raw) return;
       const data = JSON.parse(raw);
-      if (data.waypoints && Array.isArray(data.waypoints)) {
+      
+      // Check version - if old version, clear and start fresh
+      const COORD_SYSTEM_VERSION = 3; // v3: Per-waypoint properties + coordinate fixes
+      if (!data.coordVersion || data.coordVersion < COORD_SYSTEM_VERSION) {
+        console.log('Old data version detected (v' + (data.coordVersion || 1) + '), clearing saved data for v' + COORD_SYSTEM_VERSION);
+        localStorage.removeItem('routePlotter_autosave');
+        return;
+      }
+      
+      if (data.waypoints) {
         this.waypoints = data.waypoints;
+        console.log('Loaded waypoints:', this.waypoints.length);
       }
       if (data.styles) {
         this.styles = { ...this.styles, ...data.styles };
@@ -922,16 +1114,17 @@ class RoutePlotter {
       if (data.background) {
         this.background.overlay = data.background.overlay ?? this.background.overlay;
         this.background.fit = data.background.fit ?? this.background.fit;
-        this.background.aspect = data.background.aspect ?? this.background.aspect;
-        this.background.maskMode = data.background.maskMode ?? this.background.maskMode;
-        // Reflect in UI if controls exist
+        
+        // Update toggle button to match loaded state
+        if (this.elements.bgFitToggle) {
+          this.elements.bgFitToggle.textContent = this.background.fit === 'fit' ? 'Fit' : 'Fill';
+          this.elements.bgFitToggle.dataset.mode = this.background.fit;
+        }
+        // Reflect overlay in UI if controls exist
         if (this.elements.bgOverlay) {
           this.elements.bgOverlay.value = String(this.background.overlay);
           this.elements.bgOverlayValue.textContent = String(this.background.overlay);
         }
-        if (this.elements.bgFit) this.elements.bgFit.value = this.background.fit;
-        if (this.elements.bgAspect) this.elements.bgAspect.value = this.background.aspect;
-        if (this.elements.bgMaskMode) this.elements.bgMaskMode.value = this.background.maskMode;
       }
       this.calculatePath();
       this.updateWaypointList();
@@ -1002,20 +1195,11 @@ class RoutePlotter {
     // 2) Contrast overlay
     this.renderOverlay(ctx);
     
-    // 3-6) Vector + head + UI handles on offscreen, then mask compositing
+    // 3-6) Vector + head + UI handles on offscreen canvas
     const vCanvas = this.getVectorCanvas();
     const vctx = vCanvas.getContext('2d');
     vctx.clearRect(0, 0, vCanvas.width, vCanvas.height);
     this.renderVectorLayerTo(vctx);
-    
-    // Mask compositing
-    if (this.background.mask) {
-      vctx.save();
-      vctx.globalCompositeOperation = this.background.maskMode === 'cutout' ? 'destination-out' : 'destination-in';
-      const rect = this.getAspectRect();
-      vctx.drawImage(this.background.mask, rect.x, rect.y, rect.w, rect.h);
-      vctx.restore();
-    }
     
     // Blit vector layer to main
     ctx.drawImage(vCanvas, 0, 0);
@@ -1031,6 +1215,11 @@ class RoutePlotter {
     if (this.vectorCanvas.width !== cw || this.vectorCanvas.height !== ch) {
       this.vectorCanvas.width = cw;
       this.vectorCanvas.height = ch;
+      // Disable smoothing on vector canvas too
+      const vctx = this.vectorCanvas.getContext('2d');
+      if (vctx) {
+        vctx.imageSmoothingEnabled = false;
+      }
     }
     return this.vectorCanvas;
   }
@@ -1148,7 +1337,7 @@ class RoutePlotter {
         // Convert waypoint from image coords to canvas coords
         const wpCanvas = this.imageToCanvas(waypoint.imgX, waypoint.imgY);
         const isSelected = waypoint === this.selectedWaypoint;
-        const baseSize = waypoint.dotSize || this.styles.waypointSize;
+        const baseSize = waypoint.waypointSize ?? waypoint.dotSize ?? this.styles.waypointSize;
         const size = isSelected ? baseSize * 1.3 : baseSize;
         this.ctx.beginPath();
         this.ctx.fillStyle = waypoint.dotColor || waypoint.segmentColor;
@@ -1171,6 +1360,23 @@ class RoutePlotter {
       img.onerror = reject;
       img.src = url;
     });
+  }
+  
+  loadDefaultImage() {
+    const img = new Image();
+    img.onload = () => {
+      this.background.image = img;
+      // Recalculate path with proper image bounds now that image is loaded
+      if (this.waypoints.length >= 2) {
+        this.calculatePath();
+      }
+      this.render();
+      console.log('Default image (UoN_map.png) loaded for dev testing');
+    };
+    img.onerror = (err) => {
+      console.warn('Could not load default image:', err);
+    };
+    img.src = './UoN_map.png';
   }
   
   applyLineStyle(style) {
@@ -1196,6 +1402,12 @@ class RoutePlotter {
     const bStyle = point.beaconStyle || 'none';
     const bColor = point.beaconColor || this.styles.beaconColor;
     if (bStyle === 'none') return;
+    
+    // Safety check for valid coordinates
+    if (!isFinite(point.x) || !isFinite(point.y)) {
+      console.warn('Invalid beacon coordinates:', point);
+      return;
+    }
     
     if (bStyle === 'pulse') {
       // Update pulse phase
