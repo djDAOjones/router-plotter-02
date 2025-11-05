@@ -664,7 +664,7 @@ class RoutePlotter {
       label: isMajor ? `Waypoint ${this.waypoints.length + 1}` : '',
       labelMode: isMajor ? this.styles.labelMode : 'none',
       labelPosition: this.styles.labelPosition,
-      pauseMode: isMajor ? 'none' : 'none', // 'none', 'timed', 'click'
+      pauseMode: isMajor ? 'timed' : 'none', // Default to 'timed' for major waypoints
       pauseTime: 1500 // in milliseconds
     };
     
@@ -1124,21 +1124,45 @@ class RoutePlotter {
     const segmentIndex = this.findSegmentIndexForProgress(rawProgress);
     if (segmentIndex < 0) return;
     
-    // Check each major waypoint with pause settings
+    // Only log major waypoint info on the first frame (when near the beginning)
+    if (rawProgress < 0.01) {
+      console.log('All major waypoints:', majorWaypoints.map(wp => ({
+        index: wp.index,
+        progress: wp.progress, 
+        pauseMode: wp.waypoint && wp.waypoint.pauseMode
+      })));
+    }
+    
     for (const wp of majorWaypoints) {
-      // Skip if no pause or incorrect waypoint
-      if (!wp.waypoint || wp.waypoint.pauseMode !== 'timed') continue;
+      // Extra careful check for pauseMode property
+      const pauseMode = wp.waypoint && wp.waypoint.pauseMode;
+      
+      // Skip if no pause settings
+      if (!wp.waypoint || pauseMode !== 'timed') {
+        console.log(`Skipping waypoint ${wp.index} - pauseMode=${pauseMode}`);
+        continue;
+      }
       
       // We only want to pause when we reach a specific waypoint
       const waypointSegmentIndex = wp.index;
       
-      // Handle exact waypoint positions rather than segments
-      // This is important since we're using normalized progress values
+      // Handle waypoint positions with a reasonable threshold
+      // Using a much larger threshold to ensure we don't miss the waypoint
       const distanceFromWaypoint = Math.abs(rawProgress - wp.progress);
       
-      // Check if we're exactly at this waypoint (or very close to it)
-      // We pause when we're exactly at or just passed a waypoint position
-      const atWaypoint = distanceFromWaypoint < 0.0001;
+      // Only log when we're getting close to the waypoint to avoid spam
+      if (distanceFromWaypoint < 0.1) {
+        console.log(`Waypoint ${wp.index} check:`, {
+          waypointProgress: wp.progress.toFixed(4),
+          currentProgress: rawProgress.toFixed(4),
+          distance: distanceFromWaypoint.toFixed(4),
+          pauseMode: pauseMode,
+          already: wp.index === this.animationState.pauseWaypointIndex
+        });
+      }
+      
+      // Using much larger threshold (0.02 = 2% of total path) to ensure detection
+      const atWaypoint = distanceFromWaypoint < 0.02; 
       const notAlreadyPaused = wp.index !== this.animationState.pauseWaypointIndex; // Haven't paused here yet
       
       const justPassedWaypoint = atWaypoint && notAlreadyPaused;
