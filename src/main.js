@@ -1075,91 +1075,76 @@ class RoutePlotter {
     return majorWaypoints;
   }
   
-  // Apply easing around major waypoints with pause settings
+  // Apply easing based on curvature, but SKIP easing around waypoints with pauses
+  // to avoid any flickering or positioning issues
   applyEasing(rawProgress, majorWaypoints) {
     // Default to raw progress if no waypoints
     if (majorWaypoints.length === 0) return rawProgress;
     
-    // Smaller easing window to reduce flickering
-    const easeWindow = 0.06; // 6% of total path (3% before, 3% after)
+    // Find the active segment we're in
+    const currentSegmentIndex = this.findSegmentIndexForProgress(rawProgress);
+    if (currentSegmentIndex < 0) return rawProgress;
     
-    // Check if we're near a major waypoint that has pause settings
-    for (let i = 0; i < majorWaypoints.length; i++) {
-      const wp = majorWaypoints[i];
-      
-      // Only apply easing if this waypoint has pause settings
-      if (!wp.waypoint || !wp.waypoint.pauseMode || wp.waypoint.pauseMode === 'none') continue;
-      
-      const distance = Math.abs(rawProgress - wp.progress);
-      
-      // If we're within the ease window (before or after the waypoint)
-      if (distance < easeWindow / 2) {
-        // Determine if we're approaching or leaving the waypoint
-        const approaching = rawProgress < wp.progress;
-        
-        // Calculate normalized distance within the ease window (0-1)
-        const normalizedDistance = distance / (easeWindow / 2);
-        
-        if (approaching) {
-          // Only apply easing if we're not too close to the waypoint
-          // to prevent flickering right at the waypoint
-          if (distance > 0.001) {
-            // Ease in - decelerate as we approach
-            // Use gentler ease-out cubic function
-            const easeFactor = this.easeOutCubic(1 - normalizedDistance);
-            return wp.progress - (distance * easeFactor);
-          } else {
-            // Very close to waypoint, just return raw progress to avoid flickering
-            return rawProgress;
-          }
-        } else {
-          // Ease out - accelerate as we leave
-          // Use ease-in function as we leave (speeding up)
-          const easeFactor = this.easeInCubic(normalizedDistance);
-          return wp.progress + (distance * easeFactor);
-        }
+    // Check if we should be EXACTLY at a waypoint with pause
+    for (const wp of majorWaypoints) {
+      // If we're very close to the waypoint's progress and it has a pause setting
+      if (wp.waypoint && 
+          wp.waypoint.pauseMode === 'timed' && 
+          Math.abs(rawProgress - wp.progress) < 0.001) {
+        // Force exact position at waypoint - no easing
+        return wp.progress;
       }
     }
     
-    // If not near any major waypoint, use raw progress
+    // Otherwise, continue with normal progress
     return rawProgress;
   }
   
-  // Check if we just reached a major waypoint and need to pause
+  // Find which segment of the path we're currently in based on progress
+  findSegmentIndexForProgress(progress) {
+    if (this.waypoints.length < 2) return -1;
+    
+    const totalSegments = this.waypoints.length - 1;
+    // Clamp progress between 0 and 1
+    const clampedProgress = Math.max(0, Math.min(1, progress));
+    
+    // Convert progress to segment index
+    const segmentPosition = clampedProgress * totalSegments;
+    const segmentIndex = Math.floor(segmentPosition);
+    
+    return Math.min(segmentIndex, totalSegments - 1);
+  }
+  
+  // Check if we need to pause at any waypoint
   checkForWaypointPause(rawProgress, majorWaypoints) {
-    if (this.animationState.isPaused) {
-      return; // Already paused
-    }
+    // Skip if already paused
+    if (this.animationState.isPaused) return;
     
-    // Debug log major waypoints with pause settings
-    console.log('Checking for waypoint pause:', {
-      rawProgress,
-      waypoints: majorWaypoints.map(wp => {
-        return {
-          index: wp.index,
-          progress: wp.progress,
-          pauseMode: wp.waypoint?.pauseMode || 'none'
-        };
-      })
-    });
+    // Find which waypoint we're currently at (or between)
+    const segmentIndex = this.findSegmentIndexForProgress(rawProgress);
+    if (segmentIndex < 0) return;
     
-    // Larger threshold to detect when we've reached a waypoint
-    const threshold = 0.02; // 2% of total path progress for reliable detection
-    
-    for (let i = 0; i < majorWaypoints.length; i++) {
-      const wp = majorWaypoints[i];
+    // Check each major waypoint with pause settings
+    for (const wp of majorWaypoints) {
+      // Skip if no pause or incorrect waypoint
+      if (!wp.waypoint || wp.waypoint.pauseMode !== 'timed') continue;
       
-      // Skip if this waypoint doesn't have pause settings
-      if (!wp.waypoint || !wp.waypoint.pauseMode || wp.waypoint.pauseMode === 'none') {
-        continue;
-      }
+      // We only want to pause when we reach a specific waypoint
+      const waypointSegmentIndex = wp.index;
       
-      // If we're approaching or have just reached this waypoint and haven't paused at it yet
-      // Use threshold to anticipate the waypoint slightly early
-      const approachingOrAt = (rawProgress >= wp.progress - threshold && rawProgress <= wp.progress + 0.001);
-      const notAlreadyPaused = (wp.index !== this.animationState.pauseWaypointIndex);
+      // Calculate how far we've advanced into the next segment
+      const segmentPosition = rawProgress * (this.waypoints.length - 1);
+      const segmentProgress = segmentPosition - Math.floor(segmentPosition);
       
-      if (approachingOrAt && notAlreadyPaused) {
+      // Check if we're at a waypoint that needs pausing
+      // We pause when we JUST cross a waypoint (within a small distance after it)
+      const justPassedWaypoint = (
+        waypointSegmentIndex === segmentIndex && // We're in the segment starting with this waypoint
+        segmentProgress < 0.01 && // We've just started this segment (within 1%)
+        wp.index !== this.animationState.pauseWaypointIndex // Haven't paused here yet
+      );
+      
+      if (justPassedWaypoint) {
         console.log(`PAUSING at waypoint ${wp.index} (progress ${wp.progress.toFixed(3)})`, wp.waypoint);
         
         // Mark this waypoint as the one we're pausing at
@@ -1178,7 +1163,6 @@ class RoutePlotter {
         this.announce(`Pausing at waypoint ${wp.index + 1} for ${pauseDuration} seconds`);
         
         // Force exact positioning at waypoint - adjust the actual time as well
-        // to avoid flickering when resuming after pause
         this.animationState.progress = wp.progress;
         this.animationState.currentTime = wp.progress * this.animationState.duration;
         
@@ -1472,18 +1456,16 @@ class RoutePlotter {
           // Calculate raw linear progress
           const rawProgress = this.animationState.currentTime / this.animationState.duration;
           
+          // Calculate exact positions only - no more easing for now to avoid flickering
+          this.animationState.progress = rawProgress;
+          
           // Get major waypoints and their positions
           const majorWaypoints = this.getMajorWaypointPositions();
           
           if (majorWaypoints.length > 0) {
-            // Apply easing around waypoints with pause settings
-            this.animationState.progress = this.applyEasing(rawProgress, majorWaypoints);
-            
-            // Check if we just reached a major waypoint and should pause
+            // Check if we need to pause at a waypoint
+            // Note: We're checking pause based on raw progress, not eased progress
             this.checkForWaypointPause(rawProgress, majorWaypoints);
-          } else {
-            // No major waypoints, use raw progress
-            this.animationState.progress = rawProgress;
           }
         }
         
