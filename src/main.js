@@ -72,10 +72,12 @@ class RoutePlotter {
     this.styles = {
       pathColor: '#FF6B6B',
       pathThickness: 3,
-      pathTension: 0.75, // Catmull-Rom tension (75% = less smooth)
+      pathTension: 0.05, // Catmull-Rom tension (5% = very smooth)
       waypointSize: 8,
       beaconStyle: 'pulse', // default for new major waypoints
-      beaconColor: '#FF6B6B'
+      beaconColor: '#FF6B6B',
+      labelMode: 'none',    // none, fade, persist
+      labelPosition: 'auto' // auto, top, right, bottom, left
     };
     
     // Beacon animation state
@@ -93,6 +95,12 @@ class RoutePlotter {
     
     // Offscreen canvas for vector layer compositing
     this.vectorCanvas = null;
+    
+    // Label management
+    this.labels = {
+      active: [],       // Currently visible labels
+      fadeTime: 2000    // Fade duration in ms for 'fade' mode
+    };
     
     // UI Elements
     this.elements = {
@@ -119,8 +127,6 @@ class RoutePlotter {
       animationDurationValue: document.getElementById('animation-duration-value'),
       speedControl: document.getElementById('speed-control'),
       durationControl: document.getElementById('duration-control'),
-      pathTension: document.getElementById('path-tension'),
-      pathTensionValue: document.getElementById('path-tension-value'),
       waypointList: document.getElementById('waypoint-list'),
       // Waypoint editor controls
       waypointEditor: document.getElementById('waypoint-editor'),
@@ -134,6 +140,9 @@ class RoutePlotter {
       dotSizeValue: document.getElementById('dot-size-value'),
       editorBeaconStyle: document.getElementById('editor-beacon-style'),
       editorBeaconColor: document.getElementById('editor-beacon-color'),
+      waypointLabel: document.getElementById('waypoint-label'),
+      labelMode: document.getElementById('label-mode'),
+      labelPosition: document.getElementById('label-position'),
       // Background controls
       bgUploadBtn: document.getElementById('bg-upload-btn'),
       bgUpload: document.getElementById('bg-upload'),
@@ -290,11 +299,38 @@ class RoutePlotter {
         if (this.selectedWaypoint.beaconStyle !== 'ripple') {
           this.beaconAnimation.ripples = [];
         }
+        this.render();
+        this.autoSave();
       }
     });
     this.elements.editorBeaconColor.addEventListener('input', (e) => {
       if (this.selectedWaypoint && this.selectedWaypoint.isMajor) {
         this.selectedWaypoint.beaconColor = e.target.value;
+        this.render();
+        this.autoSave();
+      }
+    });
+    
+    // Label controls (only enabled for major waypoints)
+    this.elements.waypointLabel.addEventListener('input', (e) => {
+      if (this.selectedWaypoint && this.selectedWaypoint.isMajor) {
+        this.selectedWaypoint.label = e.target.value;
+        this.render();
+        this.autoSave();
+      }
+    });
+    this.elements.labelMode.addEventListener('change', (e) => {
+      if (this.selectedWaypoint && this.selectedWaypoint.isMajor) {
+        this.selectedWaypoint.labelMode = e.target.value;
+        this.render();
+        this.autoSave();
+      }
+    });
+    this.elements.labelPosition.addEventListener('change', (e) => {
+      if (this.selectedWaypoint && this.selectedWaypoint.isMajor) {
+        this.selectedWaypoint.labelPosition = e.target.value;
+        this.render();
+        this.autoSave();
       }
     });
     
@@ -322,15 +358,7 @@ class RoutePlotter {
       }
     });
     
-    // Path tension in waypoint editor (per-waypoint)
-    this.elements.pathTension.addEventListener('input', (e) => {
-      if (this.selectedWaypoint) {
-        this.selectedWaypoint.segmentTension = parseInt(e.target.value) / 100;
-        this.elements.pathTensionValue.textContent = e.target.value + '%';
-        this.calculatePath();
-        this.autoSave();
-      }
-    });
+    // Path tension is fixed at 5% (0.05) globally
     
     // Dot controls (apply to selected waypoint)
     this.elements.dotColor.addEventListener('input', (e) => {
@@ -593,12 +621,14 @@ class RoutePlotter {
       segmentColor: this.styles.pathColor,
       segmentWidth: this.styles.pathThickness,
       segmentStyle: 'solid',
-      segmentTension: this.styles.pathTension,
       dotColor: this.styles.pathColor,
       dotSize: this.styles.waypointSize,
       waypointSize: this.styles.waypointSize,
       beaconStyle: isMajor ? this.styles.beaconStyle : 'none',
-      beaconColor: isMajor ? this.styles.beaconColor : this.styles.beaconColor
+      beaconColor: isMajor ? this.styles.beaconColor : this.styles.beaconColor,
+      label: isMajor ? `Waypoint ${this.waypoints.length + 1}` : '',
+      labelMode: isMajor ? this.styles.labelMode : 'none',
+      labelPosition: this.styles.labelPosition
     };
     
     // If there's a previous waypoint, inherit its properties
@@ -606,12 +636,14 @@ class RoutePlotter {
       segmentColor: previousWaypoint.segmentColor,
       segmentWidth: previousWaypoint.segmentWidth,
       segmentStyle: previousWaypoint.segmentStyle,
-      segmentTension: previousWaypoint.segmentTension ?? this.styles.pathTension,
       dotColor: previousWaypoint.dotColor,
       dotSize: previousWaypoint.dotSize,
       waypointSize: previousWaypoint.waypointSize ?? previousWaypoint.dotSize,
       beaconStyle: isMajor ? (previousWaypoint.beaconStyle || this.styles.beaconStyle) : 'none',
-      beaconColor: previousWaypoint.beaconColor || this.styles.beaconColor
+      beaconColor: previousWaypoint.beaconColor || this.styles.beaconColor,
+      label: isMajor ? `Waypoint ${this.waypoints.length + 1}` : '',
+      labelMode: isMajor ? (previousWaypoint.labelMode || this.styles.labelMode) : 'none',
+      labelPosition: previousWaypoint.labelPosition || this.styles.labelPosition
     } : defaultProps;
     
     // Add waypoint
@@ -703,10 +735,6 @@ class RoutePlotter {
       this.elements.segmentWidth.value = this.selectedWaypoint.segmentWidth;
       this.elements.segmentWidthValue.textContent = this.selectedWaypoint.segmentWidth;
       this.elements.segmentStyle.value = this.selectedWaypoint.segmentStyle;
-      // Path tension (per-waypoint)
-      const tension = (this.selectedWaypoint.segmentTension ?? this.styles.pathTension) * 100;
-      this.elements.pathTension.value = Math.round(tension);
-      this.elements.pathTensionValue.textContent = Math.round(tension) + '%';
       // Dot fields
       this.elements.dotColor.value = this.selectedWaypoint.dotColor || this.selectedWaypoint.segmentColor || this.styles.pathColor;
       this.elements.dotSize.value = this.selectedWaypoint.dotSize || this.styles.waypointSize;
@@ -723,14 +751,30 @@ class RoutePlotter {
         this.elements.editorBeaconColor.disabled = false;
         this.elements.editorBeaconStyle.value = this.selectedWaypoint.beaconStyle || this.styles.beaconStyle;
         this.elements.editorBeaconColor.value = this.selectedWaypoint.beaconColor || this.styles.beaconColor;
+        
+        // Label controls
+        this.elements.waypointLabel.disabled = false;
+        this.elements.labelMode.disabled = false;
+        this.elements.labelPosition.disabled = false;
+        this.elements.waypointLabel.value = this.selectedWaypoint.label || '';
+        this.elements.labelMode.value = this.selectedWaypoint.labelMode || 'none';
+        this.elements.labelPosition.value = this.selectedWaypoint.labelPosition || 'auto';
       } else {
-        // Minor waypoints: disable beacon controls
+        // Minor waypoints: disable beacon and label controls
         this.elements.dotColor.disabled = true;
         this.elements.dotSize.disabled = true;
         this.elements.editorBeaconStyle.disabled = true;
         this.elements.editorBeaconColor.disabled = true;
         this.elements.editorBeaconStyle.value = 'none';
         this.elements.editorBeaconColor.value = this.styles.beaconColor;
+        
+        // Disable label controls for minor waypoints
+        this.elements.waypointLabel.disabled = true;
+        this.elements.labelMode.disabled = true;
+        this.elements.labelPosition.disabled = true;
+        this.elements.waypointLabel.value = '';
+        this.elements.labelMode.value = 'none';
+        this.elements.labelPosition.value = 'auto';
       }
     } else {
       // Hide editor and show placeholder
@@ -865,8 +909,8 @@ class RoutePlotter {
       return { ...wp, x: canvasPos.x, y: canvasPos.y };
     });
     
-    // Use Catmull-Rom splines for smooth curves with tension
-    // Higher resolution for smoother curves (100 points per segment)
+    // Use Catmull-Rom splines with fixed 5% tension for smoother curves
+    // Higher resolution for smooth curves (100 points per segment)
     const rawPath = CatmullRom.createPath(canvasWaypoints, 100, this.styles.pathTension);
     
     // Reparameterize by arc length with corner slowing for realistic motion
@@ -1006,6 +1050,12 @@ class RoutePlotter {
   play() {
     if (this.waypoints.length < 2) return;
     
+    // If animation is finished (at 100%), reset to beginning
+    if (this.animationState.progress >= 1.0) {
+      this.animationState.progress = 0;
+      this.animationState.currentTime = 0;
+    }
+    
     this.animationState.isPlaying = true;
     this.animationState.lastTime = performance.now();
     
@@ -1072,7 +1122,7 @@ class RoutePlotter {
   autoSave() {
     try {
       const data = {
-        coordVersion: 3, // Version tracking for coordinate system changes
+        coordVersion: 4, // Version tracking for coordinate system changes
         waypoints: this.waypoints,
         styles: this.styles,
         animationState: this.animationState,
@@ -1094,7 +1144,7 @@ class RoutePlotter {
       const data = JSON.parse(raw);
       
       // Check version - if old version, clear and start fresh
-      const COORD_SYSTEM_VERSION = 3; // v3: Per-waypoint properties + coordinate fixes
+      const COORD_SYSTEM_VERSION = 4; // v4: Added label properties
       if (!data.coordVersion || data.coordVersion < COORD_SYSTEM_VERSION) {
         console.log('Old data version detected (v' + (data.coordVersion || 1) + '), clearing saved data for v' + COORD_SYSTEM_VERSION);
         localStorage.removeItem('routePlotter_autosave');
@@ -1279,6 +1329,19 @@ class RoutePlotter {
       const segments = this.waypoints.length - 1;
       const pointsPerSegment = Math.floor(totalPoints / segments);
       const controllerForSegment = new Array(segments);
+      
+      // Store exact waypoint positions in path points for later use in labels
+      this.waypointPositions = [];
+      this.waypoints.forEach((wp, index) => {
+        if (index < this.waypoints.length - 1) {
+          const exactPointIndex = (index / segments) * totalPoints;
+          this.waypointPositions.push({
+            waypointIndex: index,
+            pointIndex: exactPointIndex
+          });
+        }
+      });
+      
       let lastMajorIdx = -1;
       for (let s = 0; s < segments; s++) {
         if (this.waypoints[s].isMajor) lastMajorIdx = s;
@@ -1346,9 +1409,175 @@ class RoutePlotter {
         this.ctx.arc(wpCanvas.x, wpCanvas.y, size, 0, Math.PI * 2);
         this.ctx.fill();
         this.ctx.stroke();
+        
+        // Draw labels for major waypoints
+        this.renderLabel(waypoint, wpCanvas.x, wpCanvas.y, size);
       }
     });
     this.ctx = orig;
+  }
+  
+  // Label rendering with positioning and show/hide behavior
+  renderLabel(waypoint, x, y, dotSize) {
+    // Skip if no label text or mode is 'none'
+    if (!waypoint.label || waypoint.labelMode === 'none') return;
+    
+    // Find the true waypoint position in path coordinates
+    const wpIndex = this.waypoints.indexOf(waypoint);
+    const totalPoints = this.pathPoints.length;
+    
+    // Get exact path position for this waypoint
+    let waypointPointIndex = 0;
+    if (wpIndex < this.waypoints.length - 1) {
+      waypointPointIndex = (wpIndex / (this.waypoints.length - 1)) * totalPoints;
+    } else {
+      waypointPointIndex = totalPoints;
+    }
+    
+    // Current animation position in path coordinates
+    const exactCurrentPoint = totalPoints * this.animationState.progress;
+    
+    // Calculate animation timing parameters
+    // Increased fade time for more noticeable transition
+    const fadeTimeInPoints = totalPoints * 0.02; // 1% of animation = 0.5 seconds
+    let opacity = 0; // Start with zero opacity
+    
+    // Handle different label modes
+    switch (waypoint.labelMode) {
+      case 'on': 
+        // Always visible with full opacity
+        opacity = 1.0;
+        break;
+        
+      case 'fade':
+        // Only show label when waypoint is reached
+        if (exactCurrentPoint < waypointPointIndex) return;
+        
+        // Calculate time since waypoint was reached
+        const elapsed = exactCurrentPoint - waypointPointIndex;
+        
+        // Fade in quickly (over 0.25 seconds)
+        if (elapsed <= fadeTimeInPoints / 2) {
+          opacity = Math.min(1.0, elapsed / (fadeTimeInPoints / 2));
+          opacity = Math.pow(opacity, 0.5); // Use square root for faster initial appearance
+        }
+        // Hold during the future waypoint pause time (to be implemented)
+        else if (elapsed <= fadeTimeInPoints * 3) {
+          opacity = 1.0;
+        }
+        // Fade out over 0.5 seconds
+        else if (elapsed <= fadeTimeInPoints * 4) {
+          opacity = 1.0 - Math.min(1.0, (elapsed - fadeTimeInPoints * 3) / fadeTimeInPoints);
+        }
+        // Don't show after fade out
+        else {
+          return;
+        }
+        break;
+        
+      case 'persist':
+        // Start fading in exactly 0.5 seconds before waypoint
+        const timeBeforeWaypoint = waypointPointIndex - exactCurrentPoint;
+        
+        // If we haven't reached the fade-in period yet
+        if (timeBeforeWaypoint > fadeTimeInPoints) return;
+        
+        // If we're in the fade-in period before reaching waypoint
+        if (timeBeforeWaypoint > 0) {
+          // Accelerated fade-in (starts faster)
+          const fadeProgress = 1.0 - (timeBeforeWaypoint / fadeTimeInPoints);
+          opacity = Math.pow(fadeProgress, 0.5); // Square root for quicker initial appearance
+        }
+        // After reaching waypoint, full opacity
+        else {
+          opacity = 1.0;
+        }
+        break;
+        
+      default:
+        return; // Unknown mode
+    }
+    
+    // Debug output to console
+    // if (wpIndex === 0) console.log(`Label ${wpIndex}: opacity=${opacity.toFixed(2)}`);
+    
+    // Save context for restoring later
+    this.ctx.save();
+    
+    // Apply calculated opacity with a higher minimum to make fade-in more noticeable
+    this.ctx.globalAlpha = Math.max(0.15, opacity);
+    
+    // Label style
+    this.ctx.font = 'bold 16px Arial';
+    
+    // Visual effect depends on opacity during fade
+    // Subtle blue highlight during fade-in, white at full opacity
+    const blueAmount = opacity < 1.0 ? Math.max(0, 1 - opacity) * 60 : 0;
+    this.ctx.fillStyle = `rgb(${255-blueAmount}, ${255-blueAmount}, 255)`;
+    this.ctx.strokeStyle = '#000';
+    this.ctx.lineWidth = 3;
+    this.ctx.textAlign = 'center';
+    this.ctx.textBaseline = 'middle';
+    
+    // Add shadow for better visibility
+    this.ctx.shadowColor = 'rgba(0, 0, 0, 0.7)';
+    this.ctx.shadowBlur = 5;
+    this.ctx.shadowOffsetX = 2;
+    this.ctx.shadowOffsetY = 2;
+    
+    // Calculate label position based on position setting
+    const padding = 10; // Distance from dot edge to label
+    const position = waypoint.labelPosition || 'auto';
+    let labelX = x;
+    let labelY = y;
+    
+    // Adjust position based on setting
+    switch (position) {
+      case 'top':
+        labelY = y - dotSize - padding;
+        break;
+      case 'right':
+        labelX = x + dotSize + padding;
+        this.ctx.textAlign = 'left';
+        break;
+      case 'bottom':
+        labelY = y + dotSize + padding;
+        break;
+      case 'left':
+        labelX = x - dotSize - padding;
+        this.ctx.textAlign = 'right';
+        break;
+      case 'auto':
+      default:
+        // Auto position to avoid going off-screen
+        const cw = this.displayWidth || this.canvas.width;
+        const ch = this.displayHeight || this.canvas.height;
+        
+        // Default to top position
+        labelY = y - dotSize - padding;
+        
+        // Check if too close to top edge
+        if (labelY < 30) {
+          labelY = y + dotSize + padding; // Switch to bottom
+        }
+        
+        // Check if too close to sides
+        if (x < 100) {
+          labelX = x + dotSize + padding;
+          this.ctx.textAlign = 'left';
+        } else if (x > cw - 100) {
+          labelX = x - dotSize - padding;
+          this.ctx.textAlign = 'right';
+        }
+        break;
+    }
+    
+    // Draw text with outline for readability
+    this.ctx.strokeText(waypoint.label, labelX, labelY);
+    this.ctx.fillText(waypoint.label, labelX, labelY);
+    
+    // Restore context to clear shadow and alpha
+    this.ctx.restore();
   }
 
   // ----- Assets -----

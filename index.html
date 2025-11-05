@@ -110,11 +110,6 @@
                 <option value="squiggle">Squiggle</option>
               </select>
             </label>
-            <label>
-              <span>Tension</span>
-              <input type="range" id="path-tension" min="0" max="100" value="75" step="5">
-              <span id="path-tension-value">75%</span>
-            </label>
             
             <h4 style="font-size: 0.875rem; margin: 1rem 0 0.5rem 0; color: #666;">Waypoint Dot</h4>
             <label>
@@ -144,6 +139,31 @@
             <label>
               <span>Color</span>
               <input type="color" id="editor-beacon-color" value="#FF6B6B">
+            </label>
+            
+            <h4 style="font-size: 0.875rem; margin: 1rem 0 0.5rem 0; color: #666;">Label</h4>
+            <label>
+              <span>Text</span>
+              <input type="text" id="waypoint-label" placeholder="Enter label text...">
+            </label>
+            <label>
+              <span>Mode</span>
+              <select id="label-mode">
+                <option value="none">Off</option>
+                <option value="on">On</option>
+                <option value="fade">Show and Fade</option>
+                <option value="persist">Show and Persist</option>
+              </select>
+            </label>
+            <label>
+              <span>Position</span>
+              <select id="label-position">
+                <option value="auto">Auto</option>
+                <option value="top">Top</option>
+                <option value="right">Right</option>
+                <option value="bottom">Bottom</option>
+                <option value="left">Left</option>
+              </select>
             </label>
           </div>
         </div>
