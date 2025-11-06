@@ -62,28 +62,36 @@ class RoutePlotter {
       isPlaying: false,
       progress: 0, // 0 to 1
       currentTime: 0, // in milliseconds
-      duration: 5000, // default 5 seconds
-      speed: 200, // pixels per second
+      duration: 5000, // 5 seconds default
       mode: 'constant-speed', // or 'constant-time'
-      playbackSpeed: 1, // 0.5, 1, or 2
-      // Pause state tracking (at runtime only, not saved)
+      speed: 200, // pixels per second
+      playbackSpeed: 1, // multiplier for playback
       isPaused: false,
-      pauseStartTime: 0,
-      pauseEndTime: 0,
+      waitingForClick: false,
       pauseWaypointIndex: -1,
-      waitingForClick: false
+      pauseStartTime: 0,
+      pauseEndTime: 0
     };
     
     // Style settings
     this.styles = {
       pathColor: '#FF6B6B',
       pathThickness: 3,
-      pathTension: 0.05, // Catmull-Rom tension (5% = very smooth)
-      waypointSize: 8,
-      beaconStyle: 'pulse', // default for new major waypoints
+      pathStyle: 'solid', // solid, dashed, dotted, squiggle
+      dotColor: '#FF6B6B',
+      dotSize: 8,
+      waypointSize: 8, // Only for major waypoints
+      beaconStyle: 'pulse', // none, pulse, ripple
       beaconColor: '#FF6B6B',
-      labelMode: 'none',    // none, fade, persist
-      labelPosition: 'auto' // auto, top, right, bottom, left
+      labelMode: 'none', // none, on, fade, persist
+      labelPosition: 'auto', // auto, top, right, bottom, left
+      pathHead: {
+        style: 'dot', // dot, arrow, custom
+        color: '#111111',
+        size: 8,
+        image: null, // For custom image
+        rotation: 0 // Automatically calculated based on path direction
+      }
     };
     
     // Beacon animation state
@@ -110,8 +118,16 @@ class RoutePlotter {
     
     // UI Elements
     this.elements = {
-      helpBtn: document.getElementById('help-btn'),
-      clearBtn: document.getElementById('clear-btn'),
+      canvas: document.getElementById('canvas'),
+      waypoints: document.getElementById('waypoints-tab'),
+      settings: document.getElementById('settings-tab'),
+      tabBtns: document.querySelectorAll('.tab-btn'),
+      waypointList: document.getElementById('waypoint-list'),
+      bgUploadBtn: document.getElementById('bg-upload-btn'),
+      bgUpload: document.getElementById('bg-upload'),
+      bgOverlay: document.getElementById('bg-overlay'),
+      bgOverlayValue: document.getElementById('bg-overlay-value'),
+      bgFitToggle: document.getElementById('bg-fit-toggle'),
       playBtn: document.getElementById('play-btn'),
       pauseBtn: document.getElementById('pause-btn'),
       skipStartBtn: document.getElementById('skip-start-btn'),
@@ -119,13 +135,6 @@ class RoutePlotter {
       timelineSlider: document.getElementById('timeline-slider'),
       currentTime: document.getElementById('current-time'),
       totalTime: document.getElementById('total-time'),
-      splash: document.getElementById('splash'),
-      splashClose: document.getElementById('splash-close'),
-      splashDontShow: document.getElementById('splash-dont-show'),
-      // Style controls
-      waypointSize: document.getElementById('waypoint-size'),
-      waypointSizeValue: document.getElementById('waypoint-size-value'),
-      // New controls
       animationMode: document.getElementById('animation-mode'),
       animationSpeed: document.getElementById('animation-speed'),
       animationSpeedValue: document.getElementById('animation-speed-value'),
@@ -133,16 +142,15 @@ class RoutePlotter {
       animationDurationValue: document.getElementById('animation-duration-value'),
       speedControl: document.getElementById('speed-control'),
       durationControl: document.getElementById('duration-control'),
-      // Pause controls
+      waypointEditor: document.getElementById('waypoint-editor'),
+      waypointEditorPlaceholder: document.getElementById('waypoint-editor-placeholder'),
       waypointPauseMode: document.getElementById('waypoint-pause-mode'),
       waypointPauseTime: document.getElementById('waypoint-pause-time'),
       waypointPauseTimeValue: document.getElementById('waypoint-pause-time-value'),
       pauseTimeControl: document.getElementById('pause-time-control'),
-      easeMotion: document.getElementById('ease-motion'),
-      waypointList: document.getElementById('waypoint-list'),
-      // Waypoint editor controls
-      waypointEditor: document.getElementById('waypoint-editor'),
-      waypointEditorPlaceholder: document.getElementById('waypoint-editor-placeholder'),
+      splash: document.getElementById('splash'),
+      splashClose: document.getElementById('splash-close'),
+      splashDontShow: document.getElementById('splash-dont-show'),
       segmentColor: document.getElementById('segment-color'),
       segmentWidth: document.getElementById('segment-width'),
       segmentWidthValue: document.getElementById('segment-width-value'),
@@ -150,17 +158,27 @@ class RoutePlotter {
       dotColor: document.getElementById('dot-color'),
       dotSize: document.getElementById('dot-size'),
       dotSizeValue: document.getElementById('dot-size-value'),
+      waypointSize: document.getElementById('waypoint-size'),
+      waypointSizeValue: document.getElementById('waypoint-size-value'),
       editorBeaconStyle: document.getElementById('editor-beacon-style'),
       editorBeaconColor: document.getElementById('editor-beacon-color'),
       waypointLabel: document.getElementById('waypoint-label'),
       labelMode: document.getElementById('label-mode'),
       labelPosition: document.getElementById('label-position'),
-      // Background controls
-      bgUploadBtn: document.getElementById('bg-upload-btn'),
-      bgUpload: document.getElementById('bg-upload'),
-      bgOverlay: document.getElementById('bg-overlay'),
-      bgOverlayValue: document.getElementById('bg-overlay-value'),
-      bgFitToggle: document.getElementById('bg-fit-toggle')
+      helpBtn: document.getElementById('help-btn'),
+      clearBtn: document.getElementById('clear-btn'),
+      announcer: document.getElementById('announcer'),
+      // Path head elements
+      pathHeadStyle: document.getElementById('path-head-style'),
+      pathHeadColor: document.getElementById('path-head-color'),
+      pathHeadSize: document.getElementById('path-head-size'),
+      pathHeadSizeValue: document.getElementById('path-head-size-value'),
+      customHeadControls: document.getElementById('custom-head-controls'),
+      headUploadBtn: document.getElementById('head-upload-btn'),
+      headUpload: document.getElementById('head-upload'),
+      headPreview: document.getElementById('head-preview'),
+      headFilename: document.getElementById('head-filename'),
+      headPreviewImg: document.getElementById('head-preview-img')
     };
     
     this.init();
@@ -170,6 +188,16 @@ class RoutePlotter {
     // Set up canvas size
     this.resizeCanvas();
     window.addEventListener('resize', () => this.resizeCanvas());
+    
+    // Initialize path head control values
+    this.elements.pathHeadStyle.value = this.styles.pathHead.style;
+    this.elements.pathHeadColor.value = this.styles.pathHead.color;
+    this.elements.pathHeadSize.value = this.styles.pathHead.size;
+    this.elements.pathHeadSizeValue.textContent = this.styles.pathHead.size;
+    
+    // Show/hide custom image controls based on initial style
+    this.elements.customHeadControls.style.display = 
+      this.styles.pathHead.style === 'custom' ? 'block' : 'none';
     
     // Set up event listeners
     this.setupEventListeners();
@@ -343,6 +371,57 @@ class RoutePlotter {
         this.selectedWaypoint.labelPosition = e.target.value;
         this.render();
         this.autoSave();
+      }
+    });
+    
+    // Path Head Style Controls
+    this.elements.pathHeadStyle.addEventListener('change', (e) => {
+      this.styles.pathHead.style = e.target.value;
+      
+      // Show/hide custom image controls based on style selection
+      this.elements.customHeadControls.style.display = 
+        e.target.value === 'custom' ? 'block' : 'none';
+      
+      this.autoSave();
+    });
+    
+    this.elements.pathHeadColor.addEventListener('input', (e) => {
+      this.styles.pathHead.color = e.target.value;
+      this.autoSave();
+    });
+    
+    this.elements.pathHeadSize.addEventListener('input', (e) => {
+      this.styles.pathHead.size = parseInt(e.target.value);
+      this.elements.pathHeadSizeValue.textContent = e.target.value;
+      this.autoSave();
+    });
+    
+    // Custom Path Head Image Upload
+    this.elements.headUploadBtn.addEventListener('click', () => {
+      this.elements.headUpload.click();
+    });
+    
+    this.elements.headUpload.addEventListener('change', (e) => {
+      const file = e.target.files?.[0];
+      if (file) {
+        // Load the image
+        const reader = new FileReader();
+        reader.onload = (event) => {
+          const img = new Image();
+          img.onload = () => {
+            // Store the image in the styles
+            this.styles.pathHead.image = img;
+            
+            // Update preview
+            this.elements.headPreview.style.display = 'block';
+            this.elements.headFilename.textContent = file.name;
+            this.elements.headPreviewImg.src = event.target.result;
+            
+            this.autoSave();
+          };
+          img.src = event.target.result;
+        };
+        reader.readAsDataURL(file);
       }
     });
     
@@ -1344,10 +1423,18 @@ class RoutePlotter {
 
   autoSave() {
     try {
+      // Create a copy of styles without image references (they can't be stringified)
+      const stylesCopy = { ...this.styles };
+      // Remove image reference before serializing
+      if (stylesCopy.pathHead) {
+        stylesCopy.pathHead = { ...stylesCopy.pathHead };
+        delete stylesCopy.pathHead.image;
+      }
+      
       const data = {
         coordVersion: 6, // Version tracking for coordinate system changes
         waypoints: this.waypoints,
-        styles: this.styles,
+        styles: stylesCopy,
         animationState: this.animationState,
         background: {
           overlay: this.background.overlay,
@@ -1685,11 +1772,22 @@ class RoutePlotter {
       
       // 5) Path head layer
       if (pointsToRender > 1) {
-        const head = this.pathPoints[Math.min(pointsToRender - 1, this.pathPoints.length - 1)];
-        this.ctx.beginPath();
-        this.ctx.fillStyle = '#111';
-        this.ctx.arc(head.x, head.y, 4, 0, Math.PI * 2);
-        this.ctx.fill();
+        // Get the path head position
+        const headIndex = Math.min(pointsToRender - 1, this.pathPoints.length - 1);
+        const head = this.pathPoints[headIndex];
+        
+        // Calculate direction for rotation (based on previous point)
+        let rotation = 0;
+        if (headIndex > 0) {
+          const prevPoint = this.pathPoints[headIndex - 1];
+          rotation = Math.atan2(head.y - prevPoint.y, head.x - prevPoint.x);
+        }
+        
+        // Store calculated rotation
+        this.styles.pathHead.rotation = rotation;
+        
+        // Draw path head based on style
+        this.drawPathHead(head.x, head.y, rotation);
       }
     }
     
@@ -1955,6 +2053,74 @@ class RoutePlotter {
     }
   }
   
+  // Draw the path head based on current style settings
+  drawPathHead(x, y, rotation) {
+    // Safety check for valid coordinates
+    if (!isFinite(x) || !isFinite(y)) {
+      console.warn('Invalid path head coordinates:', {x, y});
+      return;
+    }
+    
+    const pathHead = this.styles.pathHead;
+    const size = pathHead.size;
+    
+    this.ctx.save();
+    this.ctx.translate(x, y);
+    this.ctx.rotate(rotation);
+    
+    switch (pathHead.style) {
+      case 'dot':
+        // Simple dot (filled circle)
+        this.ctx.beginPath();
+        this.ctx.fillStyle = pathHead.color;
+        this.ctx.arc(0, 0, size / 2, 0, Math.PI * 2);
+        this.ctx.fill();
+        break;
+        
+      case 'arrow':
+        // Arrow shape
+        this.ctx.beginPath();
+        this.ctx.fillStyle = pathHead.color;
+        
+        // Draw arrow pointing right (rotation will handle direction)
+        this.ctx.moveTo(size, 0);            // Tip
+        this.ctx.lineTo(-size/2, size/2);    // Bottom corner
+        this.ctx.lineTo(-size/4, 0);         // Indentation
+        this.ctx.lineTo(-size/2, -size/2);   // Top corner
+        this.ctx.closePath();
+        this.ctx.fill();
+        break;
+        
+      case 'custom':
+        // Custom image
+        if (pathHead.image) {
+          const imgSize = size * 2; // Make image slightly larger for better visibility
+          // Draw the image centered and rotated
+          this.ctx.drawImage(
+            pathHead.image, 
+            -imgSize/2, -imgSize/2,
+            imgSize, imgSize
+          );
+        } else {
+          // Fallback to dot if no image loaded
+          this.ctx.beginPath();
+          this.ctx.fillStyle = pathHead.color;
+          this.ctx.arc(0, 0, size / 2, 0, Math.PI * 2);
+          this.ctx.fill();
+        }
+        break;
+        
+      default:
+        // Default to dot
+        this.ctx.beginPath();
+        this.ctx.fillStyle = pathHead.color;
+        this.ctx.arc(0, 0, size / 2, 0, Math.PI * 2);
+        this.ctx.fill();
+    }
+    
+    this.ctx.restore();
+  }
+
   drawBeacon(point) {
     const bStyle = point.beaconStyle || 'none';
     const bColor = point.beaconColor || this.styles.beaconColor;
@@ -1972,62 +2138,61 @@ class RoutePlotter {
       
       // Pulsing dot
       const pulse = 1 + Math.sin(this.beaconAnimation.pulsePhase) * 0.3;
+      const pulseSize = 10 * pulse;
       
       // Outer glow
-      const gradient = this.ctx.createRadialGradient(
-        point.x, point.y, 0,
-        point.x, point.y, 15 * pulse
-      );
-      gradient.addColorStop(0, bColor + 'ff');
-      gradient.addColorStop(1, bColor + '00');
-      
       this.ctx.beginPath();
-      this.ctx.fillStyle = gradient;
-      this.ctx.arc(point.x, point.y, 15 * pulse, 0, Math.PI * 2);
-      this.ctx.fill();
-      
-      // Inner dot
-      this.ctx.beginPath();
+      this.ctx.arc(point.x, point.y, pulseSize, 0, Math.PI * 2);
       this.ctx.fillStyle = bColor;
-      this.ctx.strokeStyle = 'white';
-      this.ctx.lineWidth = 2;
-      this.ctx.arc(point.x, point.y, 6, 0, Math.PI * 2);
+      this.ctx.globalAlpha = 0.4;
       this.ctx.fill();
-      this.ctx.stroke();
       
-    } else if (bStyle === 'ripple') {
-      // Add new ripples periodically
-      if (Math.random() < 0.03) { // ~3% chance per frame
+      // Update pulse animation state
+      this.beaconAnimation.pulsePhase = (this.beaconAnimation.pulsePhase + 0.1) % (Math.PI * 2);
+    } 
+    else if (bStyle === 'ripple') {
+      // Ripple effect - expanding circles that fade out
+      const now = Date.now();
+      
+      // Add a new ripple every 500ms
+      if (!point.lastRipple || now - point.lastRipple > 500) {
         this.beaconAnimation.ripples.push({
-          scale: 0.8,
-          opacity: 1
+          x: point.x, 
+          y: point.y, 
+          radius: 0,
+          opacity: 0.5,
+          startTime: now,
+          color: bColor
         });
+        point.lastRipple = now;
       }
       
-      // Update and draw ripples
+      // Draw all active ripples
       this.beaconAnimation.ripples = this.beaconAnimation.ripples.filter(ripple => {
-        ripple.scale += 0.05;
-        ripple.opacity -= 0.02;
+        const age = now - ripple.startTime;
+        if (age > 1500) return false; // Remove old ripples
         
-        if (ripple.opacity > 0) {
-          this.ctx.beginPath();
-          this.ctx.strokeStyle = bColor + Math.floor(ripple.opacity * 255).toString(16).padStart(2, '0');
-          this.ctx.lineWidth = 2;
-          this.ctx.arc(point.x, point.y, 10 * ripple.scale, 0, Math.PI * 2);
-          this.ctx.stroke();
-          return true;
-        }
-        return false;
+        // Calculate current radius and opacity
+        const radius = age / 30;
+        const opacity = 0.5 - (age / 1500) * 0.5;
+        
+        // Draw ripple
+        this.ctx.beginPath();
+        this.ctx.arc(ripple.x, ripple.y, radius, 0, Math.PI * 2);
+        this.ctx.strokeStyle = ripple.color;
+        this.ctx.lineWidth = 2;
+        this.ctx.globalAlpha = opacity;
+        this.ctx.stroke();
+        
+        return true;
       });
       
-      // Center dot
+      // Draw center dot
       this.ctx.beginPath();
       this.ctx.fillStyle = bColor;
-      this.ctx.strokeStyle = 'white';
-      this.ctx.lineWidth = 2;
+      this.ctx.globalAlpha = 0.8;
       this.ctx.arc(point.x, point.y, 6, 0, Math.PI * 2);
       this.ctx.fill();
-      this.ctx.stroke();
     }
   }
 }

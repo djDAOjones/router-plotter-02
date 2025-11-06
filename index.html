@@ -63,6 +63,38 @@
             <!-- Pause controls moved to waypoint editor -->
           </div>
 
+          <!-- Path Head Customization -->
+          <div class="control-group">
+            <h3>Path Head</h3>
+            <label>
+              <span>Style</span>
+              <select id="path-head-style">
+                <option value="dot">Dot</option>
+                <option value="arrow">Arrow</option>
+                <option value="custom">Custom Image</option>
+              </select>
+            </label>
+            <label>
+              <span>Color</span>
+              <input type="color" id="path-head-color" value="#111111">
+            </label>
+            <label>
+              <span>Size</span>
+              <input type="range" id="path-head-size" min="4" max="24" value="8" step="1">
+              <span id="path-head-size-value">8</span>
+            </label>
+            <div id="custom-head-controls" style="display:none;">
+              <div style="display:flex; gap:0.5rem; align-items:center; margin-top:0.5rem;">
+                <button id="head-upload-btn" class="btn btn-secondary" aria-label="Upload custom path head image">Upload Image</button>
+                <input id="head-upload" type="file" accept="image/png,image/jpeg,image/svg+xml" style="display:none" />
+              </div>
+              <div id="head-preview" style="margin-top:0.5rem; padding:0.5rem; border:1px solid #ccc; display:none; text-align:center;">
+                <p id="head-filename">No image selected</p>
+                <img id="head-preview-img" style="max-width:100%; max-height:100px; margin:0.5rem 0;" alt="Custom path head preview">
+              </div>
+            </div>
+          </div>
+
           <div class="control-group">
             <h3>Background</h3>
             <div style="display:flex; gap:0.5rem; align-items:center;">
