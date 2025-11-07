@@ -66,11 +66,12 @@ class RoutePlotter {
       mode: 'constant-speed', // or 'constant-time'
       speed: 200, // pixels per second
       playbackSpeed: 1, // multiplier for playback
-      isPaused: false,
-      waitingForClick: false,
-      pauseWaypointIndex: -1,
-      pauseStartTime: 0,
-      pauseEndTime: 0
+      isPaused: false,        // Overall animation pause state (user-triggered)
+      isWaitingAtWaypoint: false, // Separate flag for waypoint waiting
+      pauseWaypointIndex: -1, // Current waypoint we're waiting at
+      pauseStartTime: 0,      // When the wait began
+      pauseEndTime: 0,        // When the wait should end
+      waypointProgressSnapshot: 0 // Visual progress frozen during waypoint wait
     };
     
     // Style settings
@@ -311,6 +312,12 @@ class RoutePlotter {
     
     // Timeline slider
     this.elements.timelineSlider.addEventListener('input', (e) => {
+      // Clear any waiting state when manually scrubbing
+      this.animationState.isWaitingAtWaypoint = false;
+      this.animationState.pauseWaypointIndex = -1;
+      this.animationState.waypointProgressSnapshot = 0;
+      
+      // Update progress and time based on slider position
       this.animationState.progress = e.target.value / 1000;
       this.animationState.currentTime = this.animationState.progress * this.animationState.duration;
     });
@@ -1194,10 +1201,10 @@ class RoutePlotter {
     return Math.min(segmentIndex, totalSegments - 1);
   }
   
-  // Check if we need to pause at any waypoint
-  checkForWaypointPause(rawProgress, majorWaypoints) {
-    // Skip if already paused
-    if (this.animationState.isPaused) return;
+  // Check if we need to wait at any waypoint
+  checkForWaypointWait(rawProgress, majorWaypoints) {
+    // Skip if already waiting at a waypoint or globally paused
+    if (this.animationState.isWaitingAtWaypoint || this.animationState.isPaused) return;
     
     // Find which waypoint we're currently at (or between)
     const segmentIndex = this.findSegmentIndexForProgress(rawProgress);
@@ -1218,8 +1225,7 @@ class RoutePlotter {
       
       // Skip if no pause settings
       if (!wp.waypoint || pauseMode !== 'timed') {
-        console.log(`Skipping waypoint ${wp.index} - pauseMode=${pauseMode}`);
-        continue;
+        continue; // Skip silently to reduce console spam
       }
       
       // Calculate exact position values for this waypoint
@@ -1241,35 +1247,39 @@ class RoutePlotter {
       }
       
       // Use extremely small threshold to trigger exactly at the waypoint
-      // We want to pause exactly at (or just 0.0005 before) the waypoint
+      // We want to wait exactly at (or just 0.0005 before) the waypoint
       const exactlyAtWaypoint = Math.abs(rawProgress - exactWaypointProgress) < 0.0005;
-      const notAlreadyPaused = wp.index !== this.animationState.pauseWaypointIndex; // Haven't paused here yet
+      const notAlreadyWaiting = wp.index !== this.animationState.pauseWaypointIndex; // Haven't waited here yet
       
-      const shouldPause = exactlyAtWaypoint && notAlreadyPaused;
+      const shouldWait = exactlyAtWaypoint && notAlreadyWaiting;
       
-      if (shouldPause) {
-        console.log(`PAUSING at waypoint ${wp.index} (progress ${wp.progress.toFixed(3)})`, wp.waypoint);
+      if (shouldWait) {
+        console.log(`WAITING at waypoint ${wp.index} (progress ${wp.progress.toFixed(3)})`, wp.waypoint);
         
-        // Mark this waypoint as the one we're pausing at
+        // Mark this waypoint as the one we're waiting at
         this.animationState.pauseWaypointIndex = wp.index;
         
-        // Pause the animation
-        this.animationState.isPaused = true;
+        // Start waiting - but don't pause the entire animation
+        this.animationState.isWaitingAtWaypoint = true;
         this.animationState.pauseStartTime = performance.now();
         
-        // Set end time for timed pause using this waypoint's pause time
+        // Set end time for waiting period using this waypoint's pause time
         this.animationState.pauseEndTime = 
           this.animationState.pauseStartTime + (wp.waypoint.pauseTime || 1500);
+        
+        // Store current progress as a snapshot to freeze visual progress during wait
+        this.animationState.waypointProgressSnapshot = exactWaypointProgress;
             
-        // Announce pause with duration
-        const pauseDuration = (wp.waypoint.pauseTime || 1500) / 1000;
-        this.announce(`Pausing at waypoint ${wp.index + 1} for ${pauseDuration} seconds`);
+        // Announce wait period with duration
+        const waitDuration = (wp.waypoint.pauseTime || 1500) / 1000;
+        this.announce(`Waiting at waypoint ${wp.index + 1} for ${waitDuration} seconds`);
         
         // Force exact positioning precisely AT the waypoint
-        // Use exactWaypointProgress (not wp.progress) which is the normalized position (0-1)
-        // This ensures the animation head is precisely at the waypoint when paused
+        // Use exactWaypointProgress which is the normalized position (0-1)
+        // This ensures the animation head is precisely at the waypoint during wait
         this.animationState.progress = exactWaypointProgress;
-        this.animationState.currentTime = exactWaypointProgress * this.animationState.duration;
+        
+        // Note: We don't modify currentTime since timeline should keep advancing
         
         // Ensure the path head is exactly at the waypoint
         this.render();
@@ -1352,10 +1362,11 @@ class RoutePlotter {
     this.animationState.isPlaying = true;
     this.animationState.lastTime = performance.now();
     
-    // Reset any existing pause state
+    // Reset pause and waiting states
     this.animationState.isPaused = false;
-    this.animationState.waitingForClick = false;
+    this.animationState.isWaitingAtWaypoint = false;
     this.animationState.pauseWaypointIndex = -1;
+    this.animationState.waypointProgressSnapshot = 0;
     
     // Update UI
     this.elements.playBtn.style.display = 'none';
@@ -1365,9 +1376,11 @@ class RoutePlotter {
   pause() {
     this.animationState.isPlaying = false;
     
-    // Reset any existing pause state
+    // Reset pause and waiting states
     this.animationState.isPaused = false;
-    this.animationState.waitingForClick = false;
+    this.animationState.isWaitingAtWaypoint = false;
+    this.animationState.pauseWaypointIndex = -1;
+    this.animationState.waypointProgressSnapshot = 0;
     
     // Update UI
     this.elements.playBtn.style.display = 'block';
@@ -1375,24 +1388,42 @@ class RoutePlotter {
   }
   
   skipToStart() {
+    // Reset to beginning
     this.animationState.progress = 0;
     this.animationState.currentTime = 0;
     this.elements.timelineSlider.value = 0;
+    
+    // Also clear any waiting state
+    this.animationState.isWaitingAtWaypoint = false;
+    this.animationState.pauseWaypointIndex = -1;
+    this.animationState.waypointProgressSnapshot = 0;
   }
   
   skipToEnd() {
+    // Jump to end
     this.animationState.progress = 1;
     this.animationState.currentTime = this.animationState.duration;
     this.elements.timelineSlider.value = 1000;
+    
+    // Also clear any waiting state
+    this.animationState.isWaitingAtWaypoint = false;
+    this.animationState.pauseWaypointIndex = -1;
+    this.animationState.waypointProgressSnapshot = 0;
   }
   
   clearAll() {
     this.waypoints = [];
     this.pathPoints = [];
     this.selectedWaypoint = null;
+    
+    // Reset animation state
     this.animationState.progress = 0;
     this.animationState.currentTime = 0;
     this.animationState.duration = 0;
+    this.animationState.isWaitingAtWaypoint = false;
+    this.animationState.pauseWaypointIndex = -1;
+    this.animationState.waypointProgressSnapshot = 0;
+    
     this.pause();
     this.updateTimeDisplay();
     this.updateWaypointList();
@@ -1527,69 +1558,67 @@ class RoutePlotter {
     // Continuous render loop that always runs
     const loop = (currentTime) => {
       requestAnimationFrame(loop);
-      
-      // Update animation if playing
+
       if (this.animationState.isPlaying) {
-        // Calculate delta time with playback speed
         const deltaTime = (currentTime - this.animationState.lastTime) * this.animationState.playbackSpeed;
         this.animationState.lastTime = currentTime;
         
-        // Handle waypoint pausing
+        // Handle global pause (play/pause button)
         if (this.animationState.isPaused) {
-          // Check if we need to resume after a timed pause
+          // Don't update anything if globally paused
+          return;
+        }
+
+        // Handle waypoint waiting - timer still advances but visually we stay put
+        if (this.animationState.isWaitingAtWaypoint) {
           if (currentTime >= this.animationState.pauseEndTime) {
-            console.log('Pause time complete, resuming animation at', {
+            console.log('Wait time complete, continuing animation at', {
               currentTime,
               pauseEndTime: this.animationState.pauseEndTime,
               timeElapsed: currentTime - this.animationState.pauseStartTime
             });
-            
-            // Resume animation
-            this.animationState.isPaused = false;
+            this.animationState.isWaitingAtWaypoint = false;
             this.animationState.pauseWaypointIndex = -1;
-            this.announce('Resuming animation');
-          } else {
-            // Still within pause duration
-            const remainingTime = this.animationState.pauseEndTime - currentTime;
-            if (remainingTime < 500) { // Log when we're close to resuming
-              console.log(`Still paused. Resuming in ${(remainingTime/1000).toFixed(1)}s`);
-            }
-            return; // Stay paused, don't update animation
+            this.animationState.waypointProgressSnapshot = 0;
+            this.announce('Continuing animation');
           }
         }
-        
-        // Update progress
+
+        // Always advance time whether waiting or not
         this.animationState.currentTime += deltaTime;
-        
+
+        // Check for end of animation
         if (this.animationState.currentTime >= this.animationState.duration) {
           this.animationState.currentTime = this.animationState.duration;
           this.animationState.progress = 1;
           this.pause();
         } else {
-          // Calculate raw linear progress
+          // Calculate raw progress based on current time
           const rawProgress = this.animationState.currentTime / this.animationState.duration;
-          
-          // Calculate exact positions only - no more easing for now to avoid flickering
-          this.animationState.progress = rawProgress;
-          
-          // Get major waypoints and their positions
-          const majorWaypoints = this.getMajorWaypointPositions();
-          
-          if (majorWaypoints.length > 0) {
-            // Check if we need to pause at a waypoint
-            // Note: We're checking pause based on raw progress, not eased progress
-            this.checkForWaypointPause(rawProgress, majorWaypoints);
+
+          // Set current progress - respecting waypoint waiting if active
+          if (this.animationState.isWaitingAtWaypoint) {
+            // Use snapshot progress while waiting
+            this.animationState.progress = this.animationState.waypointProgressSnapshot;
+          } else {
+            // Normal progress
+            this.animationState.progress = rawProgress;
+            
+            // Check if we need to wait at any waypoints
+            const majorWaypoints = this.getMajorWaypointPositions();
+            if (majorWaypoints.length > 0) {
+              this.checkForWaypointWait(rawProgress, majorWaypoints);
+            }
           }
         }
         
-        // Update timeline slider
-        this.elements.timelineSlider.value = this.animationState.progress * 1000;
+        // Always update slider based on timeline position, not visual progress
+        const timelineProgress = this.animationState.currentTime / this.animationState.duration;
+        this.elements.timelineSlider.value = timelineProgress * 1000;
         
-        // Update time display
         this.updateTimeDisplay();
       }
-      
-      // Always render (for drag feedback, etc.)
+
       this.render();
     };
     
