@@ -207,6 +207,10 @@ class RoutePlotter {
     this.elements.customHeadControls.style.display = 
       this.styles.pathHead.style === 'custom' ? 'block' : 'none';
     
+    // Initialize animation speed to show time
+    const defaultDuration = this.animationState.duration / 1000;
+    this.elements.animationSpeedValue.textContent = defaultDuration + 's';
+    
     // Set up event listeners
     this.setupEventListeners();
     
@@ -507,10 +511,20 @@ class RoutePlotter {
       this.calculatePath();
     });
     
-    // Animation speed/duration controls
+    // Animation speed/duration controls - always use constant speed
     this.elements.animationSpeed.addEventListener('input', (e) => {
+      this.animationState.mode = 'constant-speed';
       this.animationState.speed = parseInt(e.target.value);
-      this.elements.animationSpeedValue.textContent = e.target.value;
+      
+      // Calculate and display total duration
+      if (this.pathPoints && this.pathPoints.length > 0) {
+        const totalDuration = this.calculateAnimationDuration();
+        const durationSec = Math.round(totalDuration / 100) / 10; // Round to 1 decimal place
+        this.elements.animationSpeedValue.textContent = durationSec + 's';
+      } else {
+        this.elements.animationSpeedValue.textContent = '5s';
+      }
+      
       if (this.animationState.mode === 'constant-speed') {
         this.calculatePath();
       }
@@ -751,16 +765,19 @@ class RoutePlotter {
       segmentColor: this.styles.pathColor,
       segmentWidth: this.styles.pathThickness,
       segmentStyle: 'solid',
-      dotColor: this.styles.pathColor,
-      dotSize: this.styles.waypointSize,
-      waypointSize: this.styles.waypointSize,
-      beaconStyle: isMajor ? this.styles.beaconStyle : 'none',
-      beaconColor: isMajor ? this.styles.beaconColor : this.styles.beaconColor,
-      label: isMajor ? `Waypoint ${this.waypoints.length + 1}` : '',
-      labelMode: isMajor ? this.styles.labelMode : 'none',
-      labelPosition: this.styles.labelPosition,
-      pauseMode: isMajor ? 'timed' : 'none', // Default to 'timed' for major waypoints
-      pauseTime: 1500 // in milliseconds
+      pathShape: 'line',
+      markerStyle: this.styles.markerStyle,
+      dotColor: this.styles.dotColor,
+      dotSize: this.styles.dotSize,
+      beaconStyle: 'none',
+      beaconColor: this.styles.beaconColor,
+      labelMode: 'none',
+      labelPosition: 'auto',
+      pauseMode: isMajor ? 'timed' : 'none',
+      pauseTime: 1500,
+      pathHeadStyle: this.styles.pathHead.style,
+      pathHeadColor: this.styles.pathHead.color,
+      pathHeadSize: this.styles.pathHead.size
     };
     
     // If there's a previous waypoint, inherit its properties
@@ -768,16 +785,20 @@ class RoutePlotter {
       segmentColor: previousWaypoint.segmentColor,
       segmentWidth: previousWaypoint.segmentWidth,
       segmentStyle: previousWaypoint.segmentStyle,
+      pathShape: previousWaypoint.pathShape || 'line',
+      markerStyle: previousWaypoint.markerStyle || this.styles.markerStyle,
       dotColor: previousWaypoint.dotColor,
       dotSize: previousWaypoint.dotSize,
-      waypointSize: previousWaypoint.waypointSize ?? previousWaypoint.dotSize,
       beaconStyle: isMajor ? (previousWaypoint.beaconStyle || this.styles.beaconStyle) : 'none',
       beaconColor: previousWaypoint.beaconColor || this.styles.beaconColor,
       label: isMajor ? `Waypoint ${this.waypoints.length + 1}` : '',
       labelMode: isMajor ? (previousWaypoint.labelMode || this.styles.labelMode) : 'none',
       labelPosition: previousWaypoint.labelPosition || this.styles.labelPosition,
       pauseMode: isMajor ? (previousWaypoint.pauseMode || 'none') : 'none',
-      pauseTime: previousWaypoint.pauseTime || 1500
+      pauseTime: previousWaypoint.pauseTime || 1500,
+      pathHeadStyle: previousWaypoint.pathHeadStyle || this.styles.pathHead.style,
+      pathHeadColor: previousWaypoint.pathHeadColor || this.styles.pathHead.color,
+      pathHeadSize: previousWaypoint.pathHeadSize || this.styles.pathHead.size
     } : defaultProps;
     
     // Add waypoint
@@ -1803,7 +1824,8 @@ class RoutePlotter {
         const controller = controllerIdx >= 0 ? this.waypoints[controllerIdx] : {
           segmentColor: this.styles.pathColor,
           segmentWidth: this.styles.pathThickness,
-          segmentStyle: 'solid'
+          segmentStyle: 'solid',
+          pathShape: 'line'
         };
         this.ctx.strokeStyle = controller.segmentColor;
         this.ctx.lineWidth = controller.segmentWidth;
@@ -1811,8 +1833,44 @@ class RoutePlotter {
         this.ctx.lineJoin = 'round';
         this.applyLineStyle(controller.segmentStyle);
         this.ctx.beginPath();
-        this.ctx.moveTo(this.pathPoints[i - 1].x, this.pathPoints[i - 1].y);
-        this.ctx.lineTo(this.pathPoints[i].x, this.pathPoints[i].y);
+        
+        const pathShape = controller.pathShape || 'line';
+        const p1 = this.pathPoints[i - 1];
+        const p2 = this.pathPoints[i];
+        
+        if (pathShape === 'squiggle') {
+          // Create a wavy path using control points
+          const midX = (p1.x + p2.x) / 2;
+          const midY = (p1.y + p2.y) / 2;
+          const perpX = -(p2.y - p1.y) * 0.15; // Perpendicular offset
+          const perpY = (p2.x - p1.x) * 0.15;
+          
+          this.ctx.moveTo(p1.x, p1.y);
+          const wave = Math.sin(i * 0.5) * 0.5;
+          this.ctx.quadraticCurveTo(
+            midX + perpX * wave, 
+            midY + perpY * wave,
+            p2.x, p2.y
+          );
+        } else if (pathShape === 'randomised') {
+          // Add random jitter to the path
+          const jitterAmount = 3;
+          const jitteredP1 = {
+            x: p1.x + (Math.random() - 0.5) * jitterAmount,
+            y: p1.y + (Math.random() - 0.5) * jitterAmount
+          };
+          const jitteredP2 = {
+            x: p2.x + (Math.random() - 0.5) * jitterAmount,
+            y: p2.y + (Math.random() - 0.5) * jitterAmount
+          };
+          this.ctx.moveTo(jitteredP1.x, jitteredP1.y);
+          this.ctx.lineTo(jitteredP2.x, jitteredP2.y);
+        } else {
+          // Default line
+          this.ctx.moveTo(p1.x, p1.y);
+          this.ctx.lineTo(p2.x, p2.y);
+        }
+        
         this.ctx.stroke();
       }
       this.ctx.setLineDash([]);
@@ -1873,15 +1931,48 @@ class RoutePlotter {
         // Convert waypoint from image coords to canvas coords
         const wpCanvas = this.imageToCanvas(waypoint.imgX, waypoint.imgY);
         const isSelected = waypoint === this.selectedWaypoint;
-        const baseSize = waypoint.waypointSize ?? waypoint.dotSize ?? this.styles.waypointSize;
-        const size = isSelected ? baseSize * 1.3 : baseSize;
-        this.ctx.beginPath();
-        this.ctx.fillStyle = waypoint.dotColor || waypoint.segmentColor;
+        const markerSize = waypoint.dotSize || this.styles.dotSize;
+        const size = isSelected ? markerSize * 1.3 : markerSize;
+        const markerStyle = waypoint.markerStyle || this.styles.markerStyle;
+        
+        // Skip rendering if marker style is 'none'
+        if (markerStyle === 'none') {
+          this.renderLabel(waypoint, wpCanvas.x, wpCanvas.y, 0);
+          return;
+        }
+        
+        this.ctx.fillStyle = waypoint.dotColor || waypoint.segmentColor || this.styles.dotColor;
         this.ctx.strokeStyle = isSelected ? '#4a90e2' : 'white';
         this.ctx.lineWidth = isSelected ? 3 : 2;
-        this.ctx.arc(wpCanvas.x, wpCanvas.y, size, 0, Math.PI * 2);
-        this.ctx.fill();
-        this.ctx.stroke();
+        
+        // Draw different marker types
+        if (markerStyle === 'square') {
+          // Square marker
+          this.ctx.beginPath();
+          this.ctx.rect(wpCanvas.x - size, wpCanvas.y - size, size * 2, size * 2);
+          this.ctx.fill();
+          this.ctx.stroke();
+        } else if (markerStyle === 'flag') {
+          // Flag marker
+          this.ctx.beginPath();
+          // Pole
+          this.ctx.moveTo(wpCanvas.x, wpCanvas.y - size * 2);
+          this.ctx.lineTo(wpCanvas.x, wpCanvas.y + size);
+          // Flag
+          this.ctx.moveTo(wpCanvas.x, wpCanvas.y - size * 2);
+          this.ctx.lineTo(wpCanvas.x + size * 1.5, wpCanvas.y - size * 1.3);
+          this.ctx.lineTo(wpCanvas.x + size * 1.2, wpCanvas.y - size);
+          this.ctx.lineTo(wpCanvas.x, wpCanvas.y - size * 0.7);
+          this.ctx.closePath();
+          this.ctx.fill();
+          this.ctx.stroke();
+        } else {
+          // Default to dot
+          this.ctx.beginPath();
+          this.ctx.arc(wpCanvas.x, wpCanvas.y, size, 0, Math.PI * 2);
+          this.ctx.fill();
+          this.ctx.stroke();
+        }
         
         // Draw labels for major waypoints
         this.renderLabel(waypoint, wpCanvas.x, wpCanvas.y, size);
