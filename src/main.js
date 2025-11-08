@@ -146,7 +146,6 @@ class RoutePlotter {
       durationControl: document.getElementById('duration-control'),
       waypointEditor: document.getElementById('waypoint-editor'),
       waypointEditorPlaceholder: document.getElementById('waypoint-editor-placeholder'),
-      waypointPauseMode: document.getElementById('waypoint-pause-mode'),
       waypointPauseTime: document.getElementById('waypoint-pause-time'),
       waypointPauseTimeValue: document.getElementById('waypoint-pause-time-value'),
       pauseTimeControl: document.getElementById('pause-time-control'),
@@ -536,26 +535,18 @@ class RoutePlotter {
       this.autoSave();
     });
     
-    // Add waypoint pause mode control (in waypoint editor)
-    this.elements.waypointPauseMode.addEventListener('change', (e) => {
-      if (this.selectedWaypoint && this.selectedWaypoint.isMajor) {
-        // Update the selected waypoint's pause mode
-        this.selectedWaypoint.pauseMode = e.target.value;
-        
-        // Show/hide pause time control based on mode
-        this.elements.pauseTimeControl.style.display = 
-          e.target.value === 'timed' ? 'flex' : 'none';
-        
-        this.autoSave();
-      }
-    });
     
     // Waypoint pause time (in waypoint editor)
     this.elements.waypointPauseTime.addEventListener('input', (e) => {
       if (this.selectedWaypoint && this.selectedWaypoint.isMajor) {
         // Update the selected waypoint's pause time (in milliseconds)
-        this.selectedWaypoint.pauseTime = parseFloat(e.target.value) * 1000;
-        this.elements.waypointPauseTimeValue.textContent = e.target.value + 's';
+        const pauseTimeSec = parseFloat(e.target.value);
+        this.selectedWaypoint.pauseTime = pauseTimeSec * 1000;
+        this.elements.waypointPauseTimeValue.textContent = pauseTimeSec + 's';
+        
+        // Automatically set pauseMode based on time value
+        this.selectedWaypoint.pauseMode = pauseTimeSec > 0 ? 'timed' : 'none';
+        
         this.autoSave();
       }
     });
@@ -924,19 +915,14 @@ class RoutePlotter {
         this.elements.labelMode.value = this.selectedWaypoint.labelMode || 'none';
         this.elements.labelPosition.value = this.selectedWaypoint.labelPosition || 'auto';
         
-        // Pause controls
-        this.elements.waypointPauseMode.disabled = false;
+        // Enable pause controls for major waypoints
         this.elements.waypointPauseTime.disabled = false;
-        this.elements.waypointPauseMode.value = this.selectedWaypoint.pauseMode || 'none';
-        // Convert pauseTime from ms to seconds for display
         const pauseTimeSec = (this.selectedWaypoint.pauseTime || 1500) / 1000;
         this.elements.waypointPauseTime.value = pauseTimeSec;
         this.elements.waypointPauseTimeValue.textContent = pauseTimeSec + 's';
-        // Show/hide pause time based on mode
-        this.elements.pauseTimeControl.style.display = 
-          this.selectedWaypoint.pauseMode === 'timed' ? 'flex' : 'none';
+        this.elements.pauseTimeControl.style.display = 'flex';
       } else {
-        // Minor waypoints: disable beacon and label controls
+        // Minor waypoint - disable features that don't apply
         this.elements.dotColor.disabled = true;
         this.elements.dotSize.disabled = true;
         this.elements.editorBeaconStyle.disabled = true;
@@ -953,9 +939,9 @@ class RoutePlotter {
         this.elements.labelPosition.value = 'auto';
         
         // Disable pause controls for minor waypoints
-        this.elements.waypointPauseMode.disabled = true;
         this.elements.waypointPauseTime.disabled = true;
-        this.elements.waypointPauseMode.value = 'none';
+        this.elements.waypointPauseTime.value = 0;
+        this.elements.waypointPauseTimeValue.textContent = '0s';
         this.elements.pauseTimeControl.style.display = 'none';
       }
     } else {
@@ -2168,6 +2154,8 @@ class RoutePlotter {
     };
     img.onerror = (err) => {
       console.warn('Could not load default image:', err);
+      // Continue rendering even without image
+      this.render();
     };
     img.src = './UoN_map.png';
   }
