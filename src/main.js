@@ -1247,72 +1247,77 @@ class RoutePlotter {
       })));
     }
     
+    // First, find the next waypoint we'll encounter
+    let nextWaypoint = null;
+    let minPositiveDistance = Infinity;
+    
     for (const wp of majorWaypoints) {
-      // Extra careful check for pauseMode property
-      const pauseMode = wp.waypoint && wp.waypoint.pauseMode;
+      // Skip waypoints we've already waited at
+      if (wp.index === this.animationState.pauseWaypointIndex) continue;
       
-      // Skip if no pause settings
-      if (!wp.waypoint || pauseMode !== 'timed') {
-        continue; // Skip silently to reduce console spam
+      // Extra careful check for pauseMode property and pause time
+      const pauseMode = wp.waypoint && wp.waypoint.pauseMode;
+      const pauseTime = wp.waypoint && wp.waypoint.pauseTime;
+      
+      // Skip if no wait time or pause mode isn't timed
+      if (!wp.waypoint || pauseMode !== 'timed' || !pauseTime || pauseTime <= 0) {
+        continue;
       }
       
       // Calculate exact position values for this waypoint
       const exactWaypointProgress = wp.index / (this.waypoints.length - 1);
       
       // Calculate precise distance from current position to waypoint
-      // Positive when approaching, negative when passed
+      // We want the closest waypoint ahead of us (positive distance)
       const distanceToWaypoint = exactWaypointProgress - rawProgress;
       
-      // Only log when we're getting close to the waypoint to avoid spam
-      if (Math.abs(distanceToWaypoint) < 0.05) {
-        console.log(`Waypoint ${wp.index} check:`, {
-          waypointProgress: exactWaypointProgress.toFixed(6),
-          currentProgress: rawProgress.toFixed(6),
-          distanceTo: distanceToWaypoint.toFixed(6),
-          pauseMode: pauseMode,
-          already: wp.index === this.animationState.pauseWaypointIndex
-        });
+      // Only consider waypoints ahead of us (positive distance) or very close
+      // Use a small negative threshold to catch waypoints we just passed by a tiny bit
+      if (distanceToWaypoint > -0.005 && distanceToWaypoint < minPositiveDistance) {
+        minPositiveDistance = distanceToWaypoint;
+        nextWaypoint = wp;
       }
+    }
+    
+    // If no valid waypoint found, return
+    if (!nextWaypoint) return;
+    
+    // Calculate exact waypoint position
+    const exactWaypointProgress = nextWaypoint.index / (this.waypoints.length - 1);
+    
+    // More flexible threshold to catch waypoints
+    // This prevents skipping over waypoints during fast animations
+    // 0.005 is 0.5% of the total path length - small enough to be precise but not miss
+    const atOrJustPassedWaypoint = 
+      Math.abs(rawProgress - exactWaypointProgress) < 0.005 && 
+      rawProgress >= exactWaypointProgress - 0.005;
+    
+    if (atOrJustPassedWaypoint) {
+      console.log(`WAITING at waypoint ${nextWaypoint.index} (progress ${nextWaypoint.progress.toFixed(3)})`, nextWaypoint.waypoint);
       
-      // Use extremely small threshold to trigger exactly at the waypoint
-      // We want to wait exactly at (or just 0.0005 before) the waypoint
-      const exactlyAtWaypoint = Math.abs(rawProgress - exactWaypointProgress) < 0.0005;
-      const notAlreadyWaiting = wp.index !== this.animationState.pauseWaypointIndex; // Haven't waited here yet
+      // Mark this waypoint as the one we're waiting at
+      this.animationState.pauseWaypointIndex = nextWaypoint.index;
       
-      const shouldWait = exactlyAtWaypoint && notAlreadyWaiting;
+      // Start waiting - but don't pause the entire animation
+      this.animationState.isWaitingAtWaypoint = true;
+      this.animationState.pauseStartTime = performance.now();
       
-      if (shouldWait) {
-        console.log(`WAITING at waypoint ${wp.index} (progress ${wp.progress.toFixed(3)})`, wp.waypoint);
-        
-        // Mark this waypoint as the one we're waiting at
-        this.animationState.pauseWaypointIndex = wp.index;
-        
-        // Start waiting - but don't pause the entire animation
-        this.animationState.isWaitingAtWaypoint = true;
-        this.animationState.pauseStartTime = performance.now();
-        
-        // Set end time for waiting period using this waypoint's pause time
-        this.animationState.pauseEndTime = 
-          this.animationState.pauseStartTime + (wp.waypoint.pauseTime || 1500);
-        
-        // Store current progress as a snapshot to freeze visual progress during wait
-        this.animationState.waypointProgressSnapshot = exactWaypointProgress;
-            
-        // Announce wait period with duration
-        const waitDuration = (wp.waypoint.pauseTime || 1500) / 1000;
-        this.announce(`Waiting at waypoint ${wp.index + 1} for ${waitDuration} seconds`);
-        
-        // Force exact positioning precisely AT the waypoint
-        // Use exactWaypointProgress which is the normalized position (0-1)
-        // This ensures the animation head is precisely at the waypoint during wait
-        this.animationState.progress = exactWaypointProgress;
-        
-        // Note: We don't modify currentTime since timeline should keep advancing
-        
-        // Ensure the path head is exactly at the waypoint
-        this.render();
-        break;
-      }
+      // Set end time for waiting period using this waypoint's pause time
+      this.animationState.pauseEndTime = 
+        this.animationState.pauseStartTime + nextWaypoint.waypoint.pauseTime;
+      
+      // Store the exact waypoint progress as a snapshot to freeze visual progress
+      this.animationState.waypointProgressSnapshot = exactWaypointProgress;
+          
+      // Announce wait period with duration
+      const waitDuration = nextWaypoint.waypoint.pauseTime / 1000;
+      this.announce(`Waiting at waypoint ${nextWaypoint.index + 1} for ${waitDuration} seconds`);
+      
+      // Force exact positioning precisely AT the waypoint
+      this.animationState.progress = exactWaypointProgress;
+      
+      // Ensure the path head is exactly at the waypoint
+      this.render();
     }
   }
   
