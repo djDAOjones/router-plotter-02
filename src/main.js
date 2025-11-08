@@ -137,13 +137,13 @@ class RoutePlotter {
       timelineSlider: document.getElementById('timeline-slider'),
       currentTime: document.getElementById('current-time'),
       totalTime: document.getElementById('total-time'),
-      animationMode: document.getElementById('animation-mode'),
+      // animationMode: document.getElementById('animation-mode'), // Removed from UI
       animationSpeed: document.getElementById('animation-speed'),
       animationSpeedValue: document.getElementById('animation-speed-value'),
-      animationDuration: document.getElementById('animation-duration'),
-      animationDurationValue: document.getElementById('animation-duration-value'),
+      // animationDuration: document.getElementById('animation-duration'), // Removed from UI
+      // animationDurationValue: document.getElementById('animation-duration-value'), // Removed from UI
       speedControl: document.getElementById('speed-control'),
-      durationControl: document.getElementById('duration-control'),
+      // durationControl: document.getElementById('duration-control'), // Removed from UI
       waypointEditor: document.getElementById('waypoint-editor'),
       waypointEditorPlaceholder: document.getElementById('waypoint-editor-placeholder'),
       waypointPauseTime: document.getElementById('waypoint-pause-time'),
@@ -497,18 +497,7 @@ class RoutePlotter {
       }
     });
     
-    // Animation mode toggle
-    this.elements.animationMode.addEventListener('change', (e) => {
-      this.animationState.mode = e.target.value;
-      if (e.target.value === 'constant-speed') {
-        this.elements.speedControl.style.display = 'flex';
-        this.elements.durationControl.style.display = 'none';
-      } else {
-        this.elements.speedControl.style.display = 'none';
-        this.elements.durationControl.style.display = 'flex';
-      }
-      this.calculatePath();
-    });
+    // Always use constant-speed mode now (animation mode dropdown removed)
     
     // Animation speed/duration controls - always use constant speed
     this.elements.animationSpeed.addEventListener('input', (e) => {
@@ -528,13 +517,6 @@ class RoutePlotter {
         this.calculatePath();
       }
     });
-    
-    this.elements.animationDuration.addEventListener('input', (e) => {
-      this.animationState.duration = parseFloat(e.target.value) * 1000; // Convert to ms
-      this.elements.animationDurationValue.textContent = e.target.value + 's';
-      this.autoSave();
-    });
-    
     
     // Waypoint pause time (in waypoint editor)
     this.elements.waypointPauseTime.addEventListener('input', (e) => {
