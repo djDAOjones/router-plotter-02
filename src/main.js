@@ -235,6 +235,27 @@ class RoutePlotter {
     console.log('Route Plotter v3 initialized');
   }
   
+  calculateAnimationDuration() {
+    if (!this.pathPoints || this.pathPoints.length < 2) {
+      return 5000; // Default 5 seconds if no path
+    }
+    
+    // Calculate total path length in pixels
+    let totalLength = 0;
+    for (let i = 1; i < this.pathPoints.length; i++) {
+      const p1 = this.pathPoints[i - 1];
+      const p2 = this.pathPoints[i];
+      const dx = p2.x - p1.x;
+      const dy = p2.y - p1.y;
+      totalLength += Math.sqrt(dx * dx + dy * dy);
+    }
+    
+    // Calculate duration based on speed (pixels per second)
+    const durationMs = (totalLength / this.animationState.speed) * 1000;
+    this.animationState.duration = durationMs;
+    return durationMs;
+  }
+  
   resizeCanvas() {
     const rect = this.canvas.getBoundingClientRect();
     
