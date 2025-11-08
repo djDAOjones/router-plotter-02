@@ -1537,26 +1537,16 @@ class RoutePlotter {
         this.animationState.playbackSpeed = savedState.playbackSpeed || 1;
         
         // Update UI to match loaded values
-        if (this.elements.animationMode) this.elements.animationMode.value = this.animationState.mode;
+        // Animation mode fixed to constant-speed
         if (this.elements.animationSpeed) {
           this.elements.animationSpeed.value = this.animationState.speed;
           this.elements.animationSpeedValue.textContent = String(this.animationState.speed);
         }
-        if (this.elements.animationDuration) {
-          const durationInSec = this.animationState.duration / 1000;
-          this.elements.animationDuration.value = String(durationInSec);
-          this.elements.animationDurationValue.textContent = durationInSec + 's';
-        }
+        // Duration control removed from UI
         
-        // Show/hide controls based on mode
-        if (this.elements.speedControl && this.elements.durationControl) {
-          if (this.animationState.mode === 'constant-speed') {
-            this.elements.speedControl.style.display = 'flex';
-            this.elements.durationControl.style.display = 'none';
-          } else {
-            this.elements.speedControl.style.display = 'none';
-            this.elements.durationControl.style.display = 'flex';
-          }
+        // Always show speed control (duration control removed)
+        if (this.elements.speedControl) {
+          this.elements.speedControl.style.display = 'flex';
         }
       }
       if (data.background) {
