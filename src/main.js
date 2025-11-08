@@ -768,7 +768,7 @@ class RoutePlotter {
       labelMode: 'none',
       labelPosition: 'auto',
       pauseMode: isMajor ? 'timed' : 'none',
-      pauseTime: 1500,
+      pauseTime: 0,
       pathHeadStyle: this.styles.pathHead.style,
       pathHeadColor: this.styles.pathHead.color,
       pathHeadSize: this.styles.pathHead.size
@@ -789,7 +789,7 @@ class RoutePlotter {
       labelMode: isMajor ? (previousWaypoint.labelMode || this.styles.labelMode) : 'none',
       labelPosition: previousWaypoint.labelPosition || this.styles.labelPosition,
       pauseMode: isMajor ? (previousWaypoint.pauseMode || 'none') : 'none',
-      pauseTime: previousWaypoint.pauseTime || 1500,
+      pauseTime: previousWaypoint.pauseTime || 0,
       pathHeadStyle: previousWaypoint.pathHeadStyle || this.styles.pathHead.style,
       pathHeadColor: previousWaypoint.pathHeadColor || this.styles.pathHead.color,
       pathHeadSize: previousWaypoint.pathHeadSize || this.styles.pathHead.size
@@ -920,7 +920,7 @@ class RoutePlotter {
         
         // Enable pause controls for major waypoints
         this.elements.waypointPauseTime.disabled = false;
-        const pauseTimeSec = (this.selectedWaypoint.pauseTime || 1500) / 1000;
+        const pauseTimeSec = (this.selectedWaypoint.pauseTime || 0) / 1000;
         this.elements.waypointPauseTime.value = pauseTimeSec;
         this.elements.waypointPauseTimeValue.textContent = pauseTimeSec + 's';
         this.elements.pauseTimeControl.style.display = 'flex';
