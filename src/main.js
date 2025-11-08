@@ -865,17 +865,26 @@ class RoutePlotter {
       this.elements.waypointEditor.style.display = 'block';
       this.elements.waypointEditorPlaceholder.style.display = 'none';
       
+      // Path properties
       this.elements.segmentColor.value = this.selectedWaypoint.segmentColor;
       this.elements.segmentWidth.value = this.selectedWaypoint.segmentWidth;
       this.elements.segmentWidthValue.textContent = this.selectedWaypoint.segmentWidth;
-      this.elements.segmentStyle.value = this.selectedWaypoint.segmentStyle;
-      // Dot fields
-      this.elements.dotColor.value = this.selectedWaypoint.dotColor || this.selectedWaypoint.segmentColor || this.styles.pathColor;
-      this.elements.dotSize.value = this.selectedWaypoint.dotSize || this.styles.waypointSize;
+      this.elements.segmentStyle.value = this.selectedWaypoint.segmentStyle || 'solid';
+      this.elements.pathShape.value = this.selectedWaypoint.pathShape || 'line';
+      
+      // Marker properties
+      this.elements.markerStyle.value = this.selectedWaypoint.markerStyle || 'dot';
+      this.elements.dotColor.value = this.selectedWaypoint.dotColor || this.selectedWaypoint.segmentColor || this.styles.dotColor;
+      this.elements.dotSize.value = this.selectedWaypoint.dotSize || this.styles.dotSize;
       this.elements.dotSizeValue.textContent = this.elements.dotSize.value;
-      // Waypoint size (per-waypoint)
-      this.elements.waypointSize.value = this.selectedWaypoint.waypointSize ?? this.selectedWaypoint.dotSize ?? this.styles.waypointSize;
-      this.elements.waypointSizeValue.textContent = this.elements.waypointSize.value;
+      
+      // Path head properties
+      this.elements.pathHeadStyle.value = this.selectedWaypoint.pathHeadStyle || this.styles.pathHead.style;
+      this.elements.pathHeadColor.value = this.selectedWaypoint.pathHeadColor || this.styles.pathHead.color;
+      this.elements.pathHeadSize.value = this.selectedWaypoint.pathHeadSize || this.styles.pathHead.size;
+      this.elements.pathHeadSizeValue.textContent = this.elements.pathHeadSize.value;
+      this.elements.customHeadControls.style.display = 
+        (this.selectedWaypoint.pathHeadStyle || this.styles.pathHead.style) === 'custom' ? 'block' : 'none';
       // Beacon editor fields
       if (this.selectedWaypoint.isMajor) {
         // Enable dot & beacon controls for major
