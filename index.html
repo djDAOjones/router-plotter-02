@@ -42,58 +42,14 @@
         <div id="settings-tab" class="tab-content">
           <div class="control-group">
             <h3>Motion</h3>
-            <label>
-              <span>Mode</span>
-              <select id="animation-mode">
-                <option value="constant-speed" selected>Constant Speed</option>
-                <option value="constant-time">Constant Time</option>
-              </select>
-            </label>
             <label id="speed-control">
-              <span>Speed</span>
+              <span>Animation Time</span>
               <input type="range" id="animation-speed" min="50" max="500" value="200" step="10">
-              <span id="animation-speed-value">200</span>
+              <span id="animation-speed-value">5s</span>
             </label>
-            <label id="duration-control" style="display:none">
-              <span>Duration</span>
-              <input type="range" id="animation-duration" min="1" max="20" value="5" step="0.5">
-              <span id="animation-duration-value">5s</span>
-            </label>
-            
-            <!-- Pause controls moved to waypoint editor -->
           </div>
 
-          <!-- Path Head Customization -->
-          <div class="control-group">
-            <h3>Path Head</h3>
-            <label>
-              <span>Style</span>
-              <select id="path-head-style">
-                <option value="dot">Dot</option>
-                <option value="arrow">Arrow</option>
-                <option value="custom">Custom Image</option>
-              </select>
-            </label>
-            <label>
-              <span>Color</span>
-              <input type="color" id="path-head-color" value="#111111">
-            </label>
-            <label>
-              <span>Size</span>
-              <input type="range" id="path-head-size" min="4" max="24" value="8" step="1">
-              <span id="path-head-size-value">8</span>
-            </label>
-            <div id="custom-head-controls" style="display:none;">
-              <div style="display:flex; gap:0.5rem; align-items:center; margin-top:0.5rem;">
-                <button id="head-upload-btn" class="btn btn-secondary" aria-label="Upload custom path head image">Upload Image</button>
-                <input id="head-upload" type="file" accept="image/png,image/jpeg,image/svg+xml" style="display:none" />
-              </div>
-              <div id="head-preview" style="margin-top:0.5rem; padding:0.5rem; border:1px solid #ccc; display:none; text-align:center;">
-                <p id="head-filename">No image selected</p>
-                <img id="head-preview-img" style="max-width:100%; max-height:100px; margin:0.5rem 0;" alt="Custom path head preview">
-              </div>
-            </div>
-          </div>
+          <!-- Path Head section moved to waypoint editor -->
 
           <div class="control-group">
             <h3>Background</h3>
@@ -123,47 +79,31 @@
       <aside class="sidebar-right" role="complementary" aria-label="Waypoint editor">
         <div id="waypoint-editor" style="display:none;">
           <div class="control-group">
-            <h3>Edit Waypoint</h3>
+            <h3>Waypoint Settings</h3>
             
-            <h4 style="font-size: 0.875rem; margin: 1rem 0 0.5rem 0; color: #666;">Path Style</h4>
+            <!-- 1. Marker (formerly Dot) -->
             <label>
-              <span>Color</span>
-              <input type="color" id="segment-color" value="#FF6B6B">
-            </label>
-            <label>
-              <span>Width</span>
-              <input type="range" id="segment-width" min="1" max="10" value="3" step="0.5">
-              <span id="segment-width-value">3</span>
-            </label>
-            <label>
-              <span>Style</span>
-              <select id="segment-style">
-                <option value="solid">Solid</option>
-                <option value="dotted">Dotted</option>
-                <option value="dashed">Dashed</option>
-                <option value="squiggle">Squiggle</option>
+              <span>Marker</span>
+              <select id="marker-style">
+                <option value="dot">Dot</option>
+                <option value="square">Square</option>
+                <option value="flag">Flag</option>
+                <option value="none">None</option>
               </select>
             </label>
-            
-            <h4 style="font-size: 0.875rem; margin: 1rem 0 0.5rem 0; color: #666;">Waypoint Dot</h4>
             <label>
-              <span>Dot Color</span>
+              <span>Marker Color</span>
               <input type="color" id="dot-color" value="#FF6B6B">
             </label>
             <label>
-              <span>Dot Size</span>
-              <input type="range" id="dot-size" min="4" max="16" value="8" step="1" aria-label="Dot size">
+              <span>Marker Size</span>
+              <input type="range" id="dot-size" min="4" max="16" value="8" step="1" aria-label="Marker size">
               <span id="dot-size-value">8</span>
             </label>
-            <label>
-              <span>Waypoint Size</span>
-              <input type="range" id="waypoint-size" min="4" max="16" value="8" step="1">
-              <span id="waypoint-size-value">8</span>
-            </label>
             
-            <h4 style="font-size: 0.875rem; margin: 1rem 0 0.5rem 0; color: #666;">Beacon Effect</h4>
+            <!-- Beacon Effect -->
             <label>
-              <span>Effect</span>
+              <span>Beacon</span>
               <select id="editor-beacon-style">
                 <option value="none">None</option>
                 <option value="pulse">Pulse</option>
@@ -171,17 +111,74 @@
               </select>
             </label>
             <label>
-              <span>Color</span>
+              <span>Beacon Color</span>
               <input type="color" id="editor-beacon-color" value="#FF6B6B">
             </label>
             
-            <h4 style="font-size: 0.875rem; margin: 1rem 0 0.5rem 0; color: #666;">Label</h4>
+            <!-- Path Head -->
             <label>
-              <span>Text</span>
+              <span>Path Head</span>
+              <select id="path-head-style">
+                <option value="arrow">Arrow</option>
+                <option value="dot">Dot</option>
+                <option value="custom">Custom Image</option>
+                <option value="none">None</option>
+              </select>
+            </label>
+            <label>
+              <span>Path Head Color</span>
+              <input type="color" id="path-head-color" value="#111111">
+            </label>
+            <label>
+              <span>Path Head Size</span>
+              <input type="range" id="path-head-size" min="4" max="24" value="8" step="1">
+              <span id="path-head-size-value">8</span>
+            </label>
+            <div id="custom-head-controls" style="display:none;">
+              <div style="display:flex; gap:0.5rem; align-items:center; margin-top:0.5rem;">
+                <button id="head-upload-btn" class="btn btn-secondary" aria-label="Upload custom path head image">Upload Image</button>
+                <input id="head-upload" type="file" accept="image/png,image/jpeg,image/svg+xml" style="display:none" />
+              </div>
+              <div id="head-preview" style="margin-top:0.5rem; padding:0.5rem; border:1px solid #ccc; display:none; text-align:center;">
+                <p id="head-filename">No image selected</p>
+                <img id="head-preview-img" style="max-width:100%; max-height:100px; margin:0.5rem 0;" alt="Custom path head preview">
+              </div>
+            </div>
+            
+            <!-- Path Properties -->
+            <label>
+              <span>Path Color</span>
+              <input type="color" id="segment-color" value="#FF6B6B">
+            </label>
+            <label>
+              <span>Path Thickness</span>
+              <input type="range" id="segment-width" min="1" max="10" value="3" step="0.5">
+              <span id="segment-width-value">3</span>
+            </label>
+            <label>
+              <span>Path Shape</span>
+              <select id="path-shape">
+                <option value="line">Line</option>
+                <option value="squiggle">Squiggle</option>
+                <option value="randomised">Randomised</option>
+              </select>
+            </label>
+            <label>
+              <span>Path Style</span>
+              <select id="segment-style">
+                <option value="solid">Solid</option>
+                <option value="dotted">Dotted</option>
+                <option value="dashed">Dashed</option>
+              </select>
+            </label>
+            
+            <!-- Label -->
+            <label>
+              <span>Label Text</span>
               <input type="text" id="waypoint-label" placeholder="Enter label text...">
             </label>
             <label>
-              <span>Mode</span>
+              <span>Label Onset</span>
               <select id="label-mode">
                 <option value="none">Off</option>
                 <option value="on">On</option>
@@ -190,7 +187,7 @@
               </select>
             </label>
             <label>
-              <span>Position</span>
+              <span>Label Position</span>
               <select id="label-position">
                 <option value="auto">Auto</option>
                 <option value="top">Top</option>
@@ -200,17 +197,10 @@
               </select>
             </label>
             
-            <h4 style="font-size: 0.875rem; margin: 1rem 0 0.5rem 0; color: #666;">Pause</h4>
-            <label>
-              <span>Type</span>
-              <select id="waypoint-pause-mode">
-                <option value="none">No Pause</option>
-                <option value="timed">Pause for Seconds</option>
-              </select>
-            </label>
+            <!-- Wait Time -->
             <label id="pause-time-control">
-              <span>Duration</span>
-              <input type="range" id="waypoint-pause-time" min="0.5" max="5" value="1.5" step="0.5">
+              <span>Wait Time</span>
+              <input type="range" id="waypoint-pause-time" min="0" max="5" value="1.5" step="0.5">
               <span id="waypoint-pause-time-value">1.5s</span>
             </label>
           </div>

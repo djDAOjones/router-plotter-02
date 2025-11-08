@@ -78,16 +78,17 @@ class RoutePlotter {
     this.styles = {
       pathColor: '#FF6B6B',
       pathThickness: 3,
-      pathStyle: 'solid', // solid, dashed, dotted, squiggle
+      pathStyle: 'solid', // solid, dashed, dotted
+      pathShape: 'line', // line, squiggle, randomised
+      markerStyle: 'dot', // dot, square, flag, none
       dotColor: '#FF6B6B',
       dotSize: 8,
-      waypointSize: 8, // Only for major waypoints
       beaconStyle: 'pulse', // none, pulse, ripple
       beaconColor: '#FF6B6B',
       labelMode: 'none', // none, on, fade, persist
       labelPosition: 'auto', // auto, top, right, bottom, left
       pathHead: {
-        style: 'dot', // dot, arrow, custom
+        style: 'arrow', // dot, arrow, custom, none
         color: '#111111',
         size: 8,
         image: null, // For custom image
@@ -159,8 +160,8 @@ class RoutePlotter {
       dotColor: document.getElementById('dot-color'),
       dotSize: document.getElementById('dot-size'),
       dotSizeValue: document.getElementById('dot-size-value'),
-      waypointSize: document.getElementById('waypoint-size'),
-      waypointSizeValue: document.getElementById('waypoint-size-value'),
+      markerStyle: document.getElementById('marker-style'),
+      pathShape: document.getElementById('path-shape'),
       editorBeaconStyle: document.getElementById('editor-beacon-style'),
       editorBeaconColor: document.getElementById('editor-beacon-color'),
       waypointLabel: document.getElementById('waypoint-label'),
@@ -189,6 +190,12 @@ class RoutePlotter {
     // Set up canvas size
     this.resizeCanvas();
     window.addEventListener('resize', () => this.resizeCanvas());
+    
+    // Initialize marker style controls
+    this.elements.markerStyle.value = this.styles.markerStyle;
+    
+    // Initialize path shape control
+    this.elements.pathShape.value = this.styles.pathShape;
     
     // Initialize path head control values
     this.elements.pathHeadStyle.value = this.styles.pathHead.style;
@@ -323,17 +330,55 @@ class RoutePlotter {
     });
     
     // Style controls
-    // Waypoint size in waypoint editor (per-waypoint)
-    this.elements.waypointSize.addEventListener('input', (e) => {
+    
+    // Waypoint editor controls
+    this.elements.segmentColor.addEventListener('input', (e) => {
       if (this.selectedWaypoint) {
-        const size = parseInt(e.target.value);
-        this.selectedWaypoint.waypointSize = size;
-        // Also update dotSize to keep them in sync
-        this.selectedWaypoint.dotSize = size;
-        this.elements.waypointSizeValue.textContent = e.target.value;
-        // Update dot size control to match
-        this.elements.dotSize.value = e.target.value;
-        this.elements.dotSizeValue.textContent = e.target.value;
+        this.selectedWaypoint.segmentColor = e.target.value;
+        this.calculatePath();
+        this.autoSave();
+      }
+    });
+    
+    this.elements.segmentWidth.addEventListener('input', (e) => {
+      if (this.selectedWaypoint) {
+        this.selectedWaypoint.segmentWidth = parseFloat(e.target.value);
+        this.elements.segmentWidthValue.textContent = e.target.value;
+        this.calculatePath();
+        this.autoSave();
+      }
+    });
+    
+    this.elements.segmentStyle.addEventListener('change', (e) => {
+      if (this.selectedWaypoint) {
+        this.selectedWaypoint.segmentStyle = e.target.value;
+        this.calculatePath();
+        this.autoSave();
+      }
+    });
+    
+    // Path shape control (line, squiggle, randomised)
+    this.elements.pathShape.addEventListener('change', (e) => {
+      if (this.selectedWaypoint) {
+        this.selectedWaypoint.pathShape = e.target.value;
+        this.calculatePath();
+        this.autoSave();
+      }
+    });
+    
+    // Marker style control (dot, square, flag, none)
+    this.elements.markerStyle.addEventListener('change', (e) => {
+      if (this.selectedWaypoint) {
+        this.selectedWaypoint.markerStyle = e.target.value;
+        this.render();
+        this.autoSave();
+      }
+    });
+    
+    // Dot color and size controls
+    this.elements.dotColor.addEventListener('input', (e) => {
+      if (this.selectedWaypoint) {
+        this.selectedWaypoint.dotColor = e.target.value;
         this.render();
         this.autoSave();
       }
@@ -432,45 +477,9 @@ class RoutePlotter {
       }
     });
     
-    // Waypoint editor controls
-    this.elements.segmentColor.addEventListener('input', (e) => {
-      if (this.selectedWaypoint) {
-        this.selectedWaypoint.segmentColor = e.target.value;
-        this.calculatePath();
-      }
-    });
-    
-    this.elements.segmentWidth.addEventListener('input', (e) => {
-      if (this.selectedWaypoint) {
-        this.selectedWaypoint.segmentWidth = parseFloat(e.target.value);
-        this.elements.segmentWidthValue.textContent = e.target.value;
-        this.calculatePath();
-      }
-    });
-    
-    this.elements.segmentStyle.addEventListener('change', (e) => {
-      if (this.selectedWaypoint) {
-        this.selectedWaypoint.segmentStyle = e.target.value;
-        this.calculatePath();
-        this.autoSave();
-      }
-    });
-    
-    // Path tension is fixed at 5% (0.05) globally
-    
-    // Dot controls (apply to selected waypoint)
-    this.elements.dotColor.addEventListener('input', (e) => {
-      if (this.selectedWaypoint) {
-        this.selectedWaypoint.dotColor = e.target.value;
-        this.render();
-        this.autoSave();
-      }
-    });
     this.elements.dotSize.addEventListener('input', (e) => {
       if (this.selectedWaypoint) {
         this.selectedWaypoint.dotSize = parseInt(e.target.value);
-        // Also update waypointSize to keep them in sync
-        this.selectedWaypoint.waypointSize = parseInt(e.target.value);
         this.elements.dotSizeValue.textContent = e.target.value;
         this.render();
         this.autoSave();

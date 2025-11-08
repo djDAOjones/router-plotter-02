@@ -217,6 +217,27 @@ body {
   font-size: 0.9rem;
 }
 
+/* Checkbox styles for motion controls */
+.checkbox-container {
+  margin: 0.75rem 0;
+}
+
+.checkbox-label {
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: center !important;
+  gap: 0.5rem !important;
+  cursor: pointer;
+  margin-bottom: 0.5rem !important;
+}
+
+.checkbox-label input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  accent-color: #4a90e2;
+}
+
 /* Waypoint List */
 .waypoint-list {
   margin-top: 1rem;
