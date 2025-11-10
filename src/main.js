@@ -744,7 +744,7 @@ class RoutePlotter {
       beaconColor: this.styles.beaconColor,
       labelMode: 'none',
       labelPosition: 'auto',
-      pauseMode: isMajor ? 'timed' : 'none',
+      pauseMode: 'none',
       pauseTime: 0,
       pathHeadStyle: this.styles.pathHead.style,
       pathHeadColor: this.styles.pathHead.color,

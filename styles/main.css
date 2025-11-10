@@ -140,7 +140,8 @@ body {
 }
 
 .tab-content.active {
-  display: block;
+  display: flex;
+  flex-direction: column;
 }
 
 /* Right Sidebar */
@@ -238,10 +239,19 @@ body {
   accent-color: #4a90e2;
 }
 
+/* Waypoints Tab - Make control-group fill available height */
+#waypoints-tab .control-group {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  margin-bottom: 0; /* Remove bottom margin to use full height */
+}
+
 /* Waypoint List */
 .waypoint-list {
   margin-top: 1rem;
-  max-height: 150px;
+  flex: 1;
+  min-height: 0; /* Important: allows flexbox to shrink below content size */
   overflow-y: auto;
   border: 1px solid #ddd;
   border-radius: 4px;
