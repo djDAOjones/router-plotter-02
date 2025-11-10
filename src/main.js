@@ -3,12 +3,14 @@ import { CatmullRom } from './utils/CatmullRom.js';
 import { Easing } from './utils/Easing.js';
 import { RENDERING, ANIMATION, INTERACTION, PATH } from './config/constants.js';
 import { StorageService } from './services/StorageService.js';
+import { CoordinateTransform } from './services/CoordinateTransform.js';
 
 // Main application class for Route Plotter v3
 class RoutePlotter {
   constructor() {
     // Services
     this.storageService = new StorageService();
+    this.coordinateTransform = new CoordinateTransform();
     
     // DOM Elements
     this.canvas = document.getElementById('canvas');
@@ -250,6 +252,9 @@ class RoutePlotter {
     this.displayWidth = rect.width;
     this.displayHeight = rect.height - controlsHeight;
     
+    // Update coordinate transform service with new canvas dimensions
+    this.coordinateTransform.setCanvasDimensions(this.displayWidth, this.displayHeight);
+    
     console.log('Canvas resized to:', rect.width, 'x', rect.height, 'at', scale + 'x scale', '(usable height:', this.displayHeight + ')');
     
     // Re-render after resize
@@ -285,6 +290,7 @@ class RoutePlotter {
       if (file && file.type.startsWith('image/')) {
         this.loadImageFile(file).then((img) => {
           this.background.image = img;
+          this.updateImageTransform(img);
           // Recalculate path with proper image bounds
           if (this.waypoints.length >= 2) {
             this.calculatePath();
@@ -526,6 +532,7 @@ class RoutePlotter {
       if (file) {
         this.loadImageFile(file).then((img) => {
           this.background.image = img;
+          this.updateImageTransform(img);
           // Recalculate path with proper image bounds
           if (this.waypoints.length >= 2) {
             this.calculatePath();
@@ -547,6 +554,11 @@ class RoutePlotter {
       const currentMode = this.background.fit;
       const newMode = currentMode === 'fit' ? 'fill' : 'fit';
       this.background.fit = newMode;
+      
+      // Update coordinateTransform with new fit mode
+      if (this.background.image) {
+        this.updateImageTransform(this.background.image);
+      }
       
       // Update button text and data attribute
       e.target.textContent = newMode === 'fit' ? 'Fit' : 'Fill';
@@ -934,96 +946,35 @@ class RoutePlotter {
     }
   }
   
-  getImageBounds() {
-    if (!this.background.image) return null;
-    
-    const img = this.background.image;
-    const iw = img.naturalWidth || img.width;
-    const ih = img.naturalHeight || img.height;
-    const cw = this.displayWidth || this.canvas.width;
-    const ch = this.displayHeight || this.canvas.height;
-    
-    if (this.background.fit === 'fit') {
-      // Fit: image is scaled to fit, may have letterboxing
-      const scale = Math.min(cw / iw, ch / ih);
-      const dw = Math.round(iw * scale);
-      const dh = Math.round(ih * scale);
-      const dx = Math.floor((cw - dw) / 2);
-      const dy = Math.floor((ch - dh) / 2);
-      return { x: dx, y: dy, w: dw, h: dh, scale };
-    } else {
-      // Fill: image fills canvas, may be cropped
-      const scale = Math.max(cw / iw, ch / ih);
-      return { x: 0, y: 0, w: cw, h: ch, scale };
+  /**
+   * Update coordinateTransform service when image changes
+   * @param {HTMLImageElement} img - The loaded image
+   */
+  updateImageTransform(img) {
+    if (!img) {
+      // No image - coordinateTransform will use normalized coordinates
+      return;
     }
+    
+    const width = img.naturalWidth || img.width;
+    const height = img.naturalHeight || img.height;
+    this.coordinateTransform.setImageDimensions(width, height, this.background.fit);
   }
   
+  /**
+   * Convert canvas coordinates to normalized image coordinates (0-1)
+   * Delegates to CoordinateTransform service
+   */
   canvasToImage(canvasX, canvasY) {
-    const bounds = this.getImageBounds();
-    if (!bounds) {
-      // No image loaded - use normalized canvas coordinates
-      const cw = this.displayWidth || this.canvas.width || 1;
-      const ch = this.displayHeight || this.canvas.height || 1;
-      return { x: canvasX / cw, y: canvasY / ch };
-    }
-    
-    const img = this.background.image;
-    const iw = img.naturalWidth || img.width;
-    const ih = img.naturalHeight || img.height;
-    
-    if (this.background.fit === 'fit') {
-      // In fit mode, calculate position relative to displayed image
-      const relX = (canvasX - bounds.x) / bounds.w;
-      const relY = (canvasY - bounds.y) / bounds.h;
-      // Clamp to 0-1 range
-      return { x: Math.max(0, Math.min(1, relX)), y: Math.max(0, Math.min(1, relY)) };
-    } else {
-      // In fill mode, account for cropping
-      const cw = this.displayWidth || this.canvas.width;
-      const ch = this.displayHeight || this.canvas.height;
-      const sw = cw / bounds.scale;
-      const sh = ch / bounds.scale;
-      const sx = (iw - sw) / 2;
-      const sy = (ih - sh) / 2;
-      
-      const relX = (canvasX / cw) * (sw / iw) + (sx / iw);
-      const relY = (canvasY / ch) * (sh / ih) + (sy / ih);
-      // Clamp to 0-1 range
-      return { x: Math.max(0, Math.min(1, relX)), y: Math.max(0, Math.min(1, relY)) };
-    }
+    return this.coordinateTransform.canvasToImage(canvasX, canvasY);
   }
   
+  /**
+   * Convert normalized image coordinates (0-1) to canvas coordinates
+   * Delegates to CoordinateTransform service
+   */
   imageToCanvas(imageX, imageY) {
-    const bounds = this.getImageBounds();
-    if (!bounds) {
-      // No image loaded - convert from normalized to canvas
-      const cw = this.displayWidth || this.canvas.width || 1;
-      const ch = this.displayHeight || this.canvas.height || 1;
-      return { x: imageX * cw, y: imageY * ch };
-    }
-    
-    const img = this.background.image;
-    const iw = img.naturalWidth || img.width;
-    const ih = img.naturalHeight || img.height;
-    
-    if (this.background.fit === 'fit') {
-      // In fit mode, scale from normalized to canvas
-      const canvasX = bounds.x + imageX * bounds.w;
-      const canvasY = bounds.y + imageY * bounds.h;
-      return { x: canvasX, y: canvasY };
-    } else {
-      // In fill mode, account for cropping
-      const cw = this.displayWidth || this.canvas.width;
-      const ch = this.displayHeight || this.canvas.height;
-      const sw = cw / bounds.scale;
-      const sh = ch / bounds.scale;
-      const sx = (iw - sw) / 2;
-      const sy = (ih - sh) / 2;
-      
-      const canvasX = ((imageX * iw - sx) / sw) * cw;
-      const canvasY = ((imageY * ih - sy) / sh) * ch;
-      return { x: canvasX, y: canvasY };
-    }
+    return this.coordinateTransform.imageToCanvas(imageX, imageY);
   }
   
   calculatePath() {
@@ -2100,6 +2051,7 @@ class RoutePlotter {
     const img = new Image();
     img.onload = () => {
       this.background.image = img;
+      this.updateImageTransform(img);
       // Recalculate path with proper image bounds now that image is loaded
       if (this.waypoints.length >= 2) {
         this.calculatePath();

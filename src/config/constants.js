@@ -20,7 +20,6 @@ export const RENDERING = {
   DEFAULT_PATH_THICKNESS: 3,
   DEFAULT_DOT_SIZE: 8,
   MINOR_DOT_SIZE: 4,
-  WAYPOINT_HIT_RADIUS: 15,       // Click detection radius
   PATH_HEAD_SIZE: 8,
   BEACON_PULSE_DURATION: 2000,   // Beacon animation cycle
   BEACON_MAX_RADIUS: 30,
@@ -52,6 +51,7 @@ export const PATH = {
 
 // UI interaction thresholds
 export const INTERACTION = {
+  WAYPOINT_HIT_RADIUS: 15,        // Click detection radius for waypoints (pixels)
   DRAG_THRESHOLD: 3,              // Minimum pixels to consider a drag
   DOUBLE_CLICK_TIME: 300,         // Maximum ms between clicks for double-click
   LONG_PRESS_TIME: 500,           // Time for long press detection

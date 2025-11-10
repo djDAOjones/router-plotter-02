@@ -104,7 +104,11 @@ export class CoordinateTransform {
       // In fit mode, convert from canvas to normalized image space
       const imageX = (canvasX - bounds.x) / bounds.w;
       const imageY = (canvasY - bounds.y) / bounds.h;
-      return { x: imageX, y: imageY };
+      // Clamp to 0-1 range for safety
+      return { 
+        x: Math.max(0, Math.min(1, imageX)), 
+        y: Math.max(0, Math.min(1, imageY)) 
+      };
     } else {
       // In fill mode, account for cropping
       const sw = this.canvasWidth / bounds.scale;
@@ -114,7 +118,11 @@ export class CoordinateTransform {
       
       const imageX = (canvasX / this.canvasWidth * sw + sx) / this.imageWidth;
       const imageY = (canvasY / this.canvasHeight * sh + sy) / this.imageHeight;
-      return { x: imageX, y: imageY };
+      // Clamp to 0-1 range for safety
+      return { 
+        x: Math.max(0, Math.min(1, imageX)), 
+        y: Math.max(0, Math.min(1, imageY)) 
+      };
     }
   }
   
