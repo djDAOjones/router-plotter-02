@@ -2,10 +2,14 @@
 import { CatmullRom } from './utils/CatmullRom.js';
 import { Easing } from './utils/Easing.js';
 import { RENDERING, ANIMATION, INTERACTION, PATH } from './config/constants.js';
+import { StorageService } from './services/StorageService.js';
 
 // Main application class for Route Plotter v3
 class RoutePlotter {
   constructor() {
+    // Services
+    this.storageService = new StorageService();
+    
     // DOM Elements
     this.canvas = document.getElementById('canvas');
     this.ctx = this.canvas.getContext('2d');
@@ -175,7 +179,7 @@ class RoutePlotter {
     this.setupEventListeners();
     
     // Show splash on first load
-    if (localStorage.getItem('routePlotter_hideSplash') !== 'true') {
+    if (this.storageService.shouldShowSplash()) {
       this.showSplash();
     }
     
@@ -1425,7 +1429,7 @@ class RoutePlotter {
     this.elements.splash.style.display = 'none';
     
     if (this.elements.splashDontShow.checked) {
-      localStorage.setItem('routePlotter_hideSplash', 'true');
+      this.storageService.markSplashShown();
     }
   }
 
@@ -1441,12 +1445,10 @@ class RoutePlotter {
 
   autoSave() {
     try {
-      // Create a copy of styles without image references (they can't be stringified)
+      // Create a clean copy of styles without the pathHead image object
       const stylesCopy = { ...this.styles };
-      // Remove image reference before serializing
-      if (stylesCopy.pathHead) {
-        stylesCopy.pathHead = { ...stylesCopy.pathHead };
-        delete stylesCopy.pathHead.image;
+      if (stylesCopy.pathHead && stylesCopy.pathHead.image) {
+        stylesCopy.pathHead = { ...stylesCopy.pathHead, image: null };
       }
       
       const data = {
@@ -1459,7 +1461,9 @@ class RoutePlotter {
           fit: this.background.fit
         }
       };
-      localStorage.setItem('routePlotter_autosave', JSON.stringify(data));
+      
+      // Use StorageService with debounced auto-save
+      this.storageService.autoSave(data);
     } catch (e) {
       console.error('Auto-save failed', e);
     }
@@ -1467,15 +1471,14 @@ class RoutePlotter {
 
   loadAutosave() {
     try {
-      const raw = localStorage.getItem('routePlotter_autosave');
-      if (!raw) return;
-      const data = JSON.parse(raw);
+      const data = this.storageService.loadAutoSave();
+      if (!data) return;
       
       // Check version - if old version, clear and start fresh
       const COORD_SYSTEM_VERSION = 6; // v6: Changed pause settings from global to per-waypoint
       if (!data.coordVersion || data.coordVersion < COORD_SYSTEM_VERSION) {
         console.log('Old data version detected (v' + (data.coordVersion || 1) + '), clearing saved data for v' + COORD_SYSTEM_VERSION);
-        localStorage.removeItem('routePlotter_autosave');
+        this.storageService.clearAutoSave();
         return;
       }
       
