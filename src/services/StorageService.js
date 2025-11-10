@@ -7,6 +7,7 @@ import { STORAGE } from '../config/constants.js';
 export class StorageService {
   constructor() {
     this.debounceTimer = null;
+    this._lastSerialized = null; // Track last saved state for change detection
   }
   
   /**
@@ -73,10 +74,16 @@ export class StorageService {
   }
   
   /**
-   * Save application state (debounced)
+   * Save application state (debounced with change detection)
    * @param {Object} state - Application state to save
    */
   autoSave(state) {
+    // Skip if nothing changed - pure optimization with no downside
+    const newSerialized = JSON.stringify(state);
+    if (newSerialized === this._lastSerialized) {
+      return; // No changes detected, skip save
+    }
+    
     // Clear existing timer
     if (this.debounceTimer) {
       clearTimeout(this.debounceTimer);
@@ -85,6 +92,7 @@ export class StorageService {
     // Set new timer
     this.debounceTimer = setTimeout(() => {
       this.save(STORAGE.AUTOSAVE_KEY, state);
+      this._lastSerialized = newSerialized; // Remember for next comparison
       console.log('Auto-saved state');
     }, STORAGE.AUTOSAVE_INTERVAL);
   }
