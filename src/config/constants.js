@@ -10,7 +10,8 @@ export const ANIMATION = {
   FRAME_INTERVAL: 1000 / 60,     // ~16.67ms per frame
   MAX_DELTA_TIME: 100,           // Maximum time jump to prevent huge leaps
   DEFAULT_PLAYBACK_SPEED: 1,
-  DEFAULT_WAIT_TIME: 0            // Default waypoint pause time
+  DEFAULT_WAIT_TIME: 0,          // Default waypoint pause time
+  TIMELINE_RESOLUTION: 1000      // Slider steps (0-1000)
 };
 
 // Rendering and visual styles
@@ -23,18 +24,27 @@ export const RENDERING = {
   PATH_HEAD_SIZE: 8,
   BEACON_PULSE_DURATION: 2000,   // Beacon animation cycle
   BEACON_MAX_RADIUS: 30,
+  BEACON_PULSE_SIZE: 10,         // Base size for pulse effect
+  BEACON_PULSE_OPACITY: 0.4,     // Opacity for pulse glow
+  BEACON_RIPPLE_DURATION: 1500,  // Ripple lifetime in ms
+  BEACON_RIPPLE_INTERVAL: 500,   // Time between ripples in ms
+  BEACON_RIPPLE_SPEED: 30,       // Ripple expansion speed (pixels per ms)
   LABEL_OFFSET_X: 10,
   LABEL_OFFSET_Y: 5,
   LABEL_FONT_SIZE: 14,
+  LABEL_FADE_TIME: 2000,         // Label fade duration in ms
   SQUIGGLE_AMPLITUDE: 0.15,      // Wave amplitude for squiggle paths
-  RANDOMISED_JITTER: 3            // Jitter amount for randomised paths
+  RANDOMISED_JITTER: 3,          // Jitter amount for randomised paths
+  CONTROLS_HEIGHT: 80            // Height of bottom controls panel in pixels
 };
 
 // Path calculation parameters
 export const PATH = {
-  POINTS_PER_SEGMENT: 30,
-  DEFAULT_TENSION: 0.5,
-  TARGET_SPACING: 2,              // For path reparameterization
+  POINTS_PER_SEGMENT: 100,        // Catmull-Rom interpolation density
+  DEFAULT_TENSION: 0.8,           // Global Catmull-Rom tension (from CatmullRom.js)
+  TARGET_SPACING: 2,              // Pixels between points after reparameterization
+  MAX_CURVATURE: 0.1,             // Threshold for maximum corner slowing
+  MIN_CORNER_SPEED: 0.4,          // Minimum 40% speed at tight corners
   CORNER_THRESHOLD: 30,           // Degrees for corner detection
   CORNER_SLOW_RADIUS: 15,
   CORNER_SLOW_FACTOR: 0.7

@@ -1,6 +1,7 @@
 // Import modular utilities
 import { CatmullRom } from './utils/CatmullRom.js';
 import { Easing } from './utils/Easing.js';
+import { RENDERING, ANIMATION, INTERACTION, PATH } from './config/constants.js';
 
 // Main application class for Route Plotter v3
 class RoutePlotter {
@@ -22,9 +23,9 @@ class RoutePlotter {
       isPlaying: false,
       progress: 0, // 0 to 1
       currentTime: 0, // in milliseconds
-      duration: 5000, // 5 seconds default
+      duration: ANIMATION.DEFAULT_DURATION, // 5 seconds default
       mode: 'constant-speed', // or 'constant-time'
-      speed: 200, // pixels per second
+      speed: ANIMATION.DEFAULT_SPEED, // pixels per second
       playbackSpeed: 1, // multiplier for playback
       isPaused: false,        // Overall animation pause state (user-triggered)
       isWaitingAtWaypoint: false, // Separate flag for waypoint waiting
@@ -42,7 +43,7 @@ class RoutePlotter {
       pathShape: 'line', // line, squiggle, randomised
       markerStyle: 'dot', // dot, square, flag, none
       dotColor: '#FF6B6B',
-      dotSize: 8,
+      dotSize: RENDERING.DEFAULT_DOT_SIZE,
       beaconStyle: 'pulse', // none, pulse, ripple
       beaconColor: '#FF6B6B',
       labelMode: 'none', // none, on, fade, persist
@@ -75,7 +76,7 @@ class RoutePlotter {
     // Label management
     this.labels = {
       active: [],       // Currently visible labels
-      fadeTime: 2000    // Fade duration in ms for 'fade' mode
+      fadeTime: RENDERING.LABEL_FADE_TIME    // Fade duration in ms for 'fade' mode
     };
     
     // UI Elements
@@ -221,7 +222,7 @@ class RoutePlotter {
     
     // Controls panel is 80px tall and overlays the bottom of the canvas
     // We need to subtract this from the usable height
-    const controlsHeight = 80;
+    const controlsHeight = RENDERING.CONTROLS_HEIGHT;
     
     // Use high DPI for better quality (aim for ~4K resolution)
     const dpr = window.devicePixelRatio || 1;
@@ -776,7 +777,7 @@ class RoutePlotter {
   }
   
   findWaypointAt(x, y) {
-    const threshold = 10; // pixels
+    const threshold = INTERACTION.WAYPOINT_HIT_RADIUS; // pixels
     return this.waypoints.find(wp => {
       // Convert waypoint from image coords to canvas coords for comparison
       const wpCanvas = this.imageToCanvas(wp.imgX, wp.imgY);
@@ -1040,12 +1041,12 @@ class RoutePlotter {
       return { ...wp, x: canvasPos.x, y: canvasPos.y };
     });
     
-    // Use Catmull-Rom splines with global tension (0.8) for smoother curves
-    // Higher resolution for smooth curves (100 points per segment)
-    const rawPath = CatmullRom.createPath(canvasWaypoints, 100);
+    // Use Catmull-Rom splines with global tension for smoother curves
+    // Higher resolution for smooth curves
+    const rawPath = CatmullRom.createPath(canvasWaypoints, PATH.POINTS_PER_SEGMENT);
     
     // Reparameterize by arc length with corner slowing for realistic motion
-    this.pathPoints = this.reparameterizeWithCornerSlowing(rawPath, 2); // 2 pixels between points
+    this.pathPoints = this.reparameterizeWithCornerSlowing(rawPath, PATH.TARGET_SPACING); // pixels between points
     
     // Calculate total path length
     let totalLength = 0;
@@ -1083,8 +1084,8 @@ class RoutePlotter {
       // Calculate velocity factor based on curvature
       // High curvature = slower, low curvature = faster
       const curvature = curvatures[i];
-      const maxCurvature = 0.1; // Tune this for more/less slowing
-      const minSpeed = 0.4; // Minimum 40% speed at tight corners
+      const maxCurvature = PATH.MAX_CURVATURE; // Tune this for more/less slowing
+      const minSpeed = PATH.MIN_CORNER_SPEED; // Minimum 40% speed at tight corners
       
       // Apply quadratic easing for smoother corner slowing
       const normalizedCurvature = Math.min(curvature / maxCurvature, 1);
@@ -1389,7 +1390,7 @@ class RoutePlotter {
     // Jump to end
     this.animationState.progress = 1;
     this.animationState.currentTime = this.animationState.duration;
-    this.elements.timelineSlider.value = 1000;
+    this.elements.timelineSlider.value = ANIMATION.TIMELINE_RESOLUTION;
     
     // Also clear any waiting state
     this.animationState.isWaitingAtWaypoint = false;
@@ -2027,7 +2028,7 @@ class RoutePlotter {
     this.ctx.shadowOffsetY = 2;
     
     // Calculate label position based on position setting
-    const padding = 10; // Distance from dot edge to label
+    const padding = RENDERING.LABEL_OFFSET_X; // Distance from dot edge to label
     const position = waypoint.labelPosition || 'auto';
     let labelX = x;
     let labelY = y;
@@ -2215,13 +2216,13 @@ class RoutePlotter {
       
       // Pulsing dot
       const pulse = 1 + Math.sin(this.beaconAnimation.pulsePhase) * 0.3;
-      const pulseSize = 10 * pulse;
+      const pulseSize = RENDERING.BEACON_PULSE_SIZE * pulse;
       
       // Outer glow
       this.ctx.beginPath();
       this.ctx.arc(point.x, point.y, pulseSize, 0, Math.PI * 2);
       this.ctx.fillStyle = bColor;
-      this.ctx.globalAlpha = 0.4;
+      this.ctx.globalAlpha = RENDERING.BEACON_PULSE_OPACITY;
       this.ctx.fill();
       
       // Update pulse animation state
@@ -2231,8 +2232,8 @@ class RoutePlotter {
       // Ripple effect - expanding circles that fade out
       const now = Date.now();
       
-      // Add a new ripple every 500ms
-      if (!point.lastRipple || now - point.lastRipple > 500) {
+      // Add a new ripple every interval
+      if (!point.lastRipple || now - point.lastRipple > RENDERING.BEACON_RIPPLE_INTERVAL) {
         this.beaconAnimation.ripples.push({
           x: point.x, 
           y: point.y, 
@@ -2247,11 +2248,11 @@ class RoutePlotter {
       // Draw all active ripples
       this.beaconAnimation.ripples = this.beaconAnimation.ripples.filter(ripple => {
         const age = now - ripple.startTime;
-        if (age > 1500) return false; // Remove old ripples
+        if (age > RENDERING.BEACON_RIPPLE_DURATION) return false; // Remove old ripples
         
         // Calculate current radius with smooth fade-out
-        const radius = age / 30;
-        const fadeProgress = age / 1500;
+        const radius = age / RENDERING.BEACON_RIPPLE_SPEED;
+        const fadeProgress = age / RENDERING.BEACON_RIPPLE_DURATION;
         const opacity = 0.5 * (1 - Easing.cubicOut(fadeProgress));
         
         // Draw ripple
