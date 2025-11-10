@@ -2273,6 +2273,9 @@ class RoutePlotter {
       this.ctx.arc(point.x, point.y, 6, 0, Math.PI * 2);
       this.ctx.fill();
     }
+    
+    // Reset global alpha to prevent affecting subsequent draws
+    this.ctx.globalAlpha = 1.0;
   }
 }
 
