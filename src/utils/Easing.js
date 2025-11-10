@@ -1,45 +1,49 @@
 /**
- * Collection of easing functions for smooth animations
- * All functions take a parameter t from 0 to 1 and return a value from 0 to 1
+ * Essential easing functions for Route Plotter
+ * Optimized for performance and clarity
+ * 
+ * All functions: t ∈ [0,1] → result ∈ [0,1]
  */
 export class Easing {
-  static linear(t) {
-    return t;
-  }
-  
-  static easeInQuad(t) {
+  /**
+   * Quadratic ease-in - slow start, accelerating
+   * 
+   * Usage: Corner slowing calculations in path generation
+   * Called ~1000+ times per path during reparameterization
+   * 
+   * @param {number} t - Progress (0 to 1)
+   * @returns {number} Eased value
+   */
+  static quadIn(t) {
     return t * t;
   }
   
-  static easeOutQuad(t) {
-    return t * (2 - t);
+  /**
+   * Cubic ease-out - fast start, decelerating
+   * 
+   * Usage: Ripple fade effects in beacon animations
+   * Called every frame (60 FPS) for each active ripple
+   * 
+   * @param {number} t - Progress (0 to 1)
+   * @returns {number} Eased value
+   */
+  static cubicOut(t) {
+    const t1 = t - 1;
+    return t1 * t1 * t1 + 1;
   }
   
-  static easeInOutQuad(t) {
-    return t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t;
-  }
-  
-  static easeInCubic(t) {
-    return t * t * t;
-  }
-  
-  static easeOutCubic(t) {
-    return (--t) * t * t + 1;
-  }
-  
-  static easeInOutCubic(t) {
-    return t < 0.5 ? 4 * t * t * t : (t - 1) * (2 * t - 2) * (2 * t - 2) + 1;
-  }
-  
-  static easeInSine(t) {
-    return 1 - Math.cos((t * Math.PI) / 2);
-  }
-  
-  static easeOutSine(t) {
-    return Math.sin((t * Math.PI) / 2);
-  }
-  
-  static easeInOutSine(t) {
-    return -(Math.cos(Math.PI * t) - 1) / 2;
+  /**
+   * Cubic ease-in-out - smooth S-curve
+   * 
+   * Usage: Global animation timing for smooth start/stop
+   * Called every frame (60 FPS) in main animation loop
+   * 
+   * @param {number} t - Progress (0 to 1)
+   * @returns {number} Eased value
+   */
+  static cubicInOut(t) {
+    return t < 0.5 
+      ? 4 * t * t * t 
+      : 1 + 4 * (t - 1) * (t - 1) * (t - 1);
   }
 }

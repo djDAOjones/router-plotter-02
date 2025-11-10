@@ -1,46 +1,6 @@
-// Catmull-Rom spline implementation with tension control
-class CatmullRom {
-  static interpolate(p0, p1, p2, p3, t, tension = 0.5) {
-    const t2 = t * t;
-    const t3 = t2 * t;
-    
-    const v0 = { x: (p2.x - p0.x) * tension, y: (p2.y - p0.y) * tension };
-    const v1 = { x: (p3.x - p1.x) * tension, y: (p3.y - p1.y) * tension };
-    
-    return {
-      x: p1.x + v0.x * t + (3 * (p2.x - p1.x) - 2 * v0.x - v1.x) * t2 + 
-         (2 * (p1.x - p2.x) + v0.x + v1.x) * t3,
-      y: p1.y + v0.y * t + (3 * (p2.y - p1.y) - 2 * v0.y - v1.y) * t2 + 
-         (2 * (p1.y - p2.y) + v0.y + v1.y) * t3
-    };
-  }
-  
-  static createPath(waypoints, pointsPerSegment = 30, defaultTension = 0.5) {
-    if (waypoints.length < 2) return [];
-    
-    const path = [];
-    
-    for (let i = 0; i < waypoints.length - 1; i++) {
-      const p0 = waypoints[Math.max(0, i - 1)];
-      const p1 = waypoints[i];
-      const p2 = waypoints[i + 1];
-      const p3 = waypoints[Math.min(waypoints.length - 1, i + 2)];
-      
-      // Use per-segment tension from the starting waypoint, or default
-      const segmentTension = p1.segmentTension ?? defaultTension;
-      
-      for (let j = 0; j < pointsPerSegment; j++) {
-        const t = j / pointsPerSegment;
-        path.push(CatmullRom.interpolate(p0, p1, p2, p3, t, segmentTension));
-      }
-    }
-    
-    // Add the last point
-    path.push(waypoints[waypoints.length - 1]);
-    
-    return path;
-  }
-}
+// Import modular utilities
+import { CatmullRom } from './utils/CatmullRom.js';
+import { Easing } from './utils/Easing.js';
 
 // Main application class for Route Plotter v3
 class RoutePlotter {
@@ -1080,9 +1040,9 @@ class RoutePlotter {
       return { ...wp, x: canvasPos.x, y: canvasPos.y };
     });
     
-    // Use Catmull-Rom splines with fixed 5% tension for smoother curves
+    // Use Catmull-Rom splines with global tension (0.8) for smoother curves
     // Higher resolution for smooth curves (100 points per segment)
-    const rawPath = CatmullRom.createPath(canvasWaypoints, 100, this.styles.pathTension);
+    const rawPath = CatmullRom.createPath(canvasWaypoints, 100);
     
     // Reparameterize by arc length with corner slowing for realistic motion
     this.pathPoints = this.reparameterizeWithCornerSlowing(rawPath, 2); // 2 pixels between points
@@ -1125,7 +1085,11 @@ class RoutePlotter {
       const curvature = curvatures[i];
       const maxCurvature = 0.1; // Tune this for more/less slowing
       const minSpeed = 0.4; // Minimum 40% speed at tight corners
-      const velocityFactor = Math.max(minSpeed, 1 - (curvature / maxCurvature) * (1 - minSpeed));
+      
+      // Apply quadratic easing for smoother corner slowing
+      const normalizedCurvature = Math.min(curvature / maxCurvature, 1);
+      const easedCurvature = Easing.quadIn(normalizedCurvature);
+      const velocityFactor = Math.max(minSpeed, 1 - easedCurvature * (1 - minSpeed));
       
       // Adjust distance based on velocity (slower = more time = more "distance" in time-space)
       const adjustedDist = physicalDist / velocityFactor;
@@ -1189,16 +1153,9 @@ class RoutePlotter {
     return majorWaypoints;
   }
   
-  // Apply easing based on curvature, but SKIP easing around waypoints with pauses
-  // to avoid any flickering or positioning issues
+  // Apply smooth easing to entire animation with EXACT waypoint positioning
+  // Gives professional smooth start/stop while preserving waypoint pause precision
   applyEasing(rawProgress, majorWaypoints) {
-    // Default to raw progress if no waypoints
-    if (majorWaypoints.length === 0) return rawProgress;
-    
-    // Find the active segment we're in
-    const currentSegmentIndex = this.findSegmentIndexForProgress(rawProgress);
-    if (currentSegmentIndex < 0) return rawProgress;
-    
     // Check if we should be EXACTLY at a waypoint with pause
     for (const wp of majorWaypoints) {
       // If we're very close to the waypoint's progress and it has a pause setting
@@ -1210,8 +1167,8 @@ class RoutePlotter {
       }
     }
     
-    // Otherwise, continue with normal progress
-    return rawProgress;
+    // Apply smooth cubic ease-in-out for professional animation feel
+    return Easing.cubicInOut(rawProgress);
   }
   
   // Find which segment of the path we're currently in based on progress
@@ -1326,11 +1283,7 @@ class RoutePlotter {
     // Click-to-continue functionality removed
   }
   
-  // Easing functions
-  easeInQuad(t) { return t * t; }
-  easeOutQuad(t) { return t * (2 - t); }
-  easeInCubic(t) { return t * t * t; }
-  easeOutCubic(t) { return 1 + (--t) * t * t; }
+  // Easing functions moved to utils/Easing.js for better modularity and performance
   
   calculateCurvature(path) {
     const curvatures = [];
@@ -2296,9 +2249,10 @@ class RoutePlotter {
         const age = now - ripple.startTime;
         if (age > 1500) return false; // Remove old ripples
         
-        // Calculate current radius and opacity
+        // Calculate current radius with smooth fade-out
         const radius = age / 30;
-        const opacity = 0.5 - (age / 1500) * 0.5;
+        const fadeProgress = age / 1500;
+        const opacity = 0.5 * (1 - Easing.cubicOut(fadeProgress));
         
         // Draw ripple
         this.ctx.beginPath();
