@@ -1,62 +1,76 @@
 /**
- * Catmull-Rom spline implementation with tension control
- * Provides smooth curve interpolation through waypoints
+ * Catmull-Rom Spline Implementation
+ * Provides smooth curve interpolation through a set of waypoints
+ * Optimized for performance with global tension control
  */
 export class CatmullRom {
   /**
-   * Interpolates a point between p1 and p2 using Catmull-Rom spline
-   * @param {Object} p0 - Control point before p1
-   * @param {Object} p1 - Start point
-   * @param {Object} p2 - End point
-   * @param {Object} p3 - Control point after p2
-   * @param {number} t - Interpolation parameter (0 to 1)
-   * @param {number} tension - Curve tension (0.5 = normal)
-   * @returns {Object} Interpolated point with x and y coordinates
+   * Global tension value for all curve segments
+   * 0.5 = standard Catmull-Rom, higher values create tighter curves
+   * @constant {number}
    */
-  static interpolate(p0, p1, p2, p3, t, tension = 0.5) {
+  static TENSION = 0.8;
+  
+  /**
+   * Interpolates a point on a Catmull-Rom spline between p1 and p2
+   * Uses the global TENSION value for consistent curve behavior
+   * @param {Object} p0 - Previous control point {x, y}
+   * @param {Object} p1 - Start point of segment {x, y}
+   * @param {Object} p2 - End point of segment {x, y}
+   * @param {Object} p3 - Next control point {x, y}
+   * @param {number} t - Interpolation parameter (0 to 1)
+   * @returns {Object} Interpolated point {x, y}
+   */
+  static interpolate(p0, p1, p2, p3, t) {
     const t2 = t * t;
     const t3 = t2 * t;
+    const tension = CatmullRom.TENSION;
     
-    const v0 = { x: (p2.x - p0.x) * tension, y: (p2.y - p0.y) * tension };
-    const v1 = { x: (p3.x - p1.x) * tension, y: (p3.y - p1.y) * tension };
+    // Pre-calculate tangent vectors
+    const v0x = (p2.x - p0.x) * tension;
+    const v0y = (p2.y - p0.y) * tension;
+    const v1x = (p3.x - p1.x) * tension;
+    const v1y = (p3.y - p1.y) * tension;
+    
+    // Calculate position using Hermite basis functions
+    const dx = p2.x - p1.x;
+    const dy = p2.y - p1.y;
     
     return {
-      x: p1.x + v0.x * t + (3 * (p2.x - p1.x) - 2 * v0.x - v1.x) * t2 + 
-         (2 * (p1.x - p2.x) + v0.x + v1.x) * t3,
-      y: p1.y + v0.y * t + (3 * (p2.y - p1.y) - 2 * v0.y - v1.y) * t2 + 
-         (2 * (p1.y - p2.y) + v0.y + v1.y) * t3
+      x: p1.x + v0x * t + (3 * dx - 2 * v0x - v1x) * t2 + (2 * -dx + v0x + v1x) * t3,
+      y: p1.y + v0y * t + (3 * dy - 2 * v0y - v1y) * t2 + (2 * -dy + v0y + v1y) * t3
     };
   }
   
   /**
    * Creates a smooth path through waypoints using Catmull-Rom splines
+   * Uses global TENSION value for all segments (optimized for performance)
    * @param {Array} waypoints - Array of waypoint objects with x and y properties
-   * @param {number} pointsPerSegment - Number of points to generate per segment
-   * @param {number} defaultTension - Default tension for curve segments
+   * @param {number} pointsPerSegment - Number of points to generate per segment (default: 30)
    * @returns {Array} Array of interpolated points forming the path
    */
-  static createPath(waypoints, pointsPerSegment = 30, defaultTension = 0.5) {
+  static createPath(waypoints, pointsPerSegment = 30) {
     if (waypoints.length < 2) return [];
     
     const path = [];
+    const lastIndex = waypoints.length - 1;
+    const step = 1 / pointsPerSegment;
     
-    for (let i = 0; i < waypoints.length - 1; i++) {
-      const p0 = waypoints[Math.max(0, i - 1)];
+    // Generate path segments
+    for (let i = 0; i < lastIndex; i++) {
+      const p0 = waypoints[i === 0 ? 0 : i - 1];
       const p1 = waypoints[i];
       const p2 = waypoints[i + 1];
-      const p3 = waypoints[Math.min(waypoints.length - 1, i + 2)];
+      const p3 = waypoints[i === lastIndex - 1 ? lastIndex : i + 2];
       
-      // Use per-segment tension from the starting waypoint, or default
-      const segmentTension = p1.segmentTension ?? defaultTension;
-      
+      // Generate points for this segment
       for (let j = 0; j < pointsPerSegment; j++) {
-        const t = j / pointsPerSegment;
-        path.push(CatmullRom.interpolate(p0, p1, p2, p3, t, segmentTension));
+        path.push(CatmullRom.interpolate(p0, p1, p2, p3, j * step));
       }
     }
     
-    // Add the last point
-    path.push(waypoints[waypoints.length - 1]);
+    // Add the final waypoint
+    path.push(waypoints[lastIndex]);
     
     return path;
   }
