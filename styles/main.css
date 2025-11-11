@@ -135,7 +135,7 @@ body {
 /* Tab Content */
 .tab-content {
   display: none;
-  padding: 1.5rem 1.25rem; /* Balanced padding with more space on right */
+  padding: 1.5rem 1.5rem 1.5rem 1rem; /* More padding on right for better spacing */
   overflow-y: auto;
   overflow-x: hidden; /* Prevent horizontal scrolling */
   flex: 1;
@@ -161,7 +161,7 @@ body {
 }
 
 .sidebar-right > div {
-  padding: 1.5rem 1.25rem; /* Balanced padding with proper margins */
+  padding: 1.5rem 1.5rem 1.5rem 1rem; /* More padding on right for better spacing */
   flex: 1;
   overflow-x: hidden; /* Prevent horizontal overflow in content */
   word-wrap: break-word; /* Wrap long text */
