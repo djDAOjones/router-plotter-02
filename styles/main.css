@@ -93,6 +93,7 @@ body {
   background: #f8f8f8;
   border-right: 1px solid #e0e0e0;
   overflow-y: auto;
+  overflow-x: hidden; /* Prevent horizontal scrolling */
   box-shadow: 2px 0 4px rgba(0,0,0,0.05);
   flex-shrink: 0;
   display: flex;
@@ -134,8 +135,9 @@ body {
 /* Tab Content */
 .tab-content {
   display: none;
-  padding: 1.5rem;
+  padding: 1.5rem 1.25rem; /* Balanced padding with more space on right */
   overflow-y: auto;
+  overflow-x: hidden; /* Prevent horizontal scrolling */
   flex: 1;
 }
 
@@ -159,7 +161,7 @@ body {
 }
 
 .sidebar-right > div {
-  padding: 1.5rem;
+  padding: 1.5rem 1.25rem; /* Balanced padding with proper margins */
   flex: 1;
   overflow-x: hidden; /* Prevent horizontal overflow in content */
   word-wrap: break-word; /* Wrap long text */
