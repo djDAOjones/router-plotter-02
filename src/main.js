@@ -5,6 +5,7 @@ import { RENDERING, ANIMATION, INTERACTION, PATH } from './config/constants.js';
 import { StorageService } from './services/StorageService.js';
 import { CoordinateTransform } from './services/CoordinateTransform.js';
 import { PathCalculator } from './services/PathCalculator.js';
+import { EventBus } from './core/EventBus.js';
 
 // Main application class for Route Plotter v3
 class RoutePlotter {
@@ -13,6 +14,10 @@ class RoutePlotter {
     this.storageService = new StorageService();
     this.coordinateTransform = new CoordinateTransform();
     this.pathCalculator = new PathCalculator();
+    this.eventBus = new EventBus(); // Event-driven architecture for decoupled communication
+    
+    // Render optimization - batch multiple render requests into single frame
+    this.renderQueued = false;
     
     // DOM Elements
     this.canvas = document.getElementById('canvas');
@@ -182,6 +187,9 @@ class RoutePlotter {
     // Set up event listeners
     this.setupEventListeners();
     
+    // Set up EventBus listeners for decoupled component communication
+    this.setupEventBusListeners();
+    
     // Show splash on first load
     if (this.storageService.shouldShowSplash()) {
       this.showSplash();
@@ -329,97 +337,92 @@ class RoutePlotter {
     // Style controls
     
     // Waypoint editor controls
+    // Segment color affects path rendering (requires recalculation)
     this.elements.segmentColor.addEventListener('input', (e) => {
       if (this.selectedWaypoint) {
         this.selectedWaypoint.segmentColor = e.target.value;
-        this.calculatePath();
-        this.autoSave();
+        this.eventBus.emit('waypoint:path-property-changed', this.selectedWaypoint);
       }
     });
     
+    // Segment width affects path rendering (requires recalculation)
     this.elements.segmentWidth.addEventListener('input', (e) => {
       if (this.selectedWaypoint) {
         this.selectedWaypoint.segmentWidth = parseFloat(e.target.value);
         this.elements.segmentWidthValue.textContent = e.target.value;
-        this.calculatePath();
-        this.autoSave();
+        this.eventBus.emit('waypoint:path-property-changed', this.selectedWaypoint);
       }
     });
     
+    // Segment style affects path rendering (requires recalculation)
     this.elements.segmentStyle.addEventListener('change', (e) => {
       if (this.selectedWaypoint) {
         this.selectedWaypoint.segmentStyle = e.target.value;
-        this.calculatePath();
-        this.autoSave();
+        this.eventBus.emit('waypoint:path-property-changed', this.selectedWaypoint);
       }
     });
     
-    // Path shape control (line, squiggle, randomised)
+    // Path shape control (line, squiggle, randomised) - affects path generation
     this.elements.pathShape.addEventListener('change', (e) => {
       if (this.selectedWaypoint) {
         this.selectedWaypoint.pathShape = e.target.value;
-        this.calculatePath();
-        this.autoSave();
+        this.eventBus.emit('waypoint:path-property-changed', this.selectedWaypoint);
       }
     });
     
-    // Marker style control (dot, square, flag, none)
+    // Marker style control (dot, square, flag, none) - visual only
     this.elements.markerStyle.addEventListener('change', (e) => {
       if (this.selectedWaypoint) {
         this.selectedWaypoint.markerStyle = e.target.value;
-        this.render();
-        this.autoSave();
+        this.eventBus.emit('waypoint:style-changed', this.selectedWaypoint);
       }
     });
     
-    // Dot color and size controls
+    // Dot color and size controls - visual only, no path recalculation
     this.elements.dotColor.addEventListener('input', (e) => {
       if (this.selectedWaypoint) {
         this.selectedWaypoint.dotColor = e.target.value;
-        this.render();
-        this.autoSave();
+        this.eventBus.emit('waypoint:style-changed', this.selectedWaypoint);
       }
     });
     
-    // Per-waypoint beacon edits (only apply to major waypoints)
+    // Per-waypoint beacon edits (only apply to major waypoints) - visual only
     this.elements.editorBeaconStyle.addEventListener('change', (e) => {
       if (this.selectedWaypoint && this.selectedWaypoint.isMajor) {
         this.selectedWaypoint.beaconStyle = e.target.value;
         if (this.selectedWaypoint.beaconStyle !== 'ripple') {
           this.beaconAnimation.ripples = [];
         }
-        this.render();
-        this.autoSave();
+        this.eventBus.emit('waypoint:style-changed', this.selectedWaypoint);
       }
     });
+    // Beacon color - visual only
     this.elements.editorBeaconColor.addEventListener('input', (e) => {
       if (this.selectedWaypoint && this.selectedWaypoint.isMajor) {
         this.selectedWaypoint.beaconColor = e.target.value;
-        this.render();
-        this.autoSave();
+        this.eventBus.emit('waypoint:style-changed', this.selectedWaypoint);
       }
     });
     
-    // Label controls (only enabled for major waypoints)
+    // Label controls (only enabled for major waypoints) - visual only
     this.elements.waypointLabel.addEventListener('input', (e) => {
       if (this.selectedWaypoint && this.selectedWaypoint.isMajor) {
         this.selectedWaypoint.label = e.target.value;
-        this.render();
-        this.autoSave();
+        this.eventBus.emit('waypoint:style-changed', this.selectedWaypoint);
       }
     });
+    // Label display mode - visual only
     this.elements.labelMode.addEventListener('change', (e) => {
       if (this.selectedWaypoint && this.selectedWaypoint.isMajor) {
         this.selectedWaypoint.labelMode = e.target.value;
-        this.render();
-        this.autoSave();
+        this.eventBus.emit('waypoint:style-changed', this.selectedWaypoint);
       }
     });
+    // Label position - visual only
     this.elements.labelPosition.addEventListener('change', (e) => {
       if (this.selectedWaypoint && this.selectedWaypoint.isMajor) {
         this.selectedWaypoint.labelPosition = e.target.value;
-        this.render();
-        this.autoSave();
+        this.eventBus.emit('waypoint:style-changed', this.selectedWaypoint);
       }
     });
     
@@ -474,12 +477,12 @@ class RoutePlotter {
       }
     });
     
+    // Dot size - visual only
     this.elements.dotSize.addEventListener('input', (e) => {
       if (this.selectedWaypoint) {
         this.selectedWaypoint.dotSize = parseInt(e.target.value);
         this.elements.dotSizeValue.textContent = e.target.value;
-        this.render();
-        this.autoSave();
+        this.eventBus.emit('waypoint:style-changed', this.selectedWaypoint);
       }
     });
     
@@ -606,36 +609,53 @@ class RoutePlotter {
         case 'ArrowLeft':
           if (this.selectedWaypoint) {
             e.preventDefault();
-            this.selectedWaypoint.x -= nudgeAmount * canvasWidth;
-            this.calculatePath();
-            this.updateWaypointList();
+            // Convert current position to canvas, nudge, then back to image coords
+            const canvasPos = this.imageToCanvas(this.selectedWaypoint.imgX, this.selectedWaypoint.imgY);
+            const newCanvasX = canvasPos.x - nudgeAmount * canvasWidth;
+            const newImgPos = this.canvasToImage(newCanvasX, canvasPos.y);
+            this.selectedWaypoint.imgX = newImgPos.x;
+            this.selectedWaypoint.imgY = newImgPos.y;
+            // Emit position changed event for consistent updates
+            this.eventBus.emit('waypoint:position-changed', this.selectedWaypoint);
           }
           break;
           
         case 'ArrowRight':
           if (this.selectedWaypoint) {
             e.preventDefault();
-            this.selectedWaypoint.x += nudgeAmount * canvasWidth;
-            this.calculatePath();
-            this.updateWaypointList();
+            const canvasPos = this.imageToCanvas(this.selectedWaypoint.imgX, this.selectedWaypoint.imgY);
+            const newCanvasX = canvasPos.x + nudgeAmount * canvasWidth;
+            const newImgPos = this.canvasToImage(newCanvasX, canvasPos.y);
+            this.selectedWaypoint.imgX = newImgPos.x;
+            this.selectedWaypoint.imgY = newImgPos.y;
+            // Emit position changed event
+            this.eventBus.emit('waypoint:position-changed', this.selectedWaypoint);
           }
           break;
           
         case 'ArrowUp':
           if (this.selectedWaypoint) {
             e.preventDefault();
-            this.selectedWaypoint.y -= nudgeAmount * canvasHeight;
-            this.calculatePath();
-            this.updateWaypointList();
+            const canvasPos = this.imageToCanvas(this.selectedWaypoint.imgX, this.selectedWaypoint.imgY);
+            const newCanvasY = canvasPos.y - nudgeAmount * canvasHeight;
+            const newImgPos = this.canvasToImage(canvasPos.x, newCanvasY);
+            this.selectedWaypoint.imgX = newImgPos.x;
+            this.selectedWaypoint.imgY = newImgPos.y;
+            // Emit position changed event
+            this.eventBus.emit('waypoint:position-changed', this.selectedWaypoint);
           }
           break;
           
         case 'ArrowDown':
           if (this.selectedWaypoint) {
             e.preventDefault();
-            this.selectedWaypoint.y += nudgeAmount * canvasHeight;
-            this.calculatePath();
-            this.updateWaypointList();
+            const canvasPos = this.imageToCanvas(this.selectedWaypoint.imgX, this.selectedWaypoint.imgY);
+            const newCanvasY = canvasPos.y + nudgeAmount * canvasHeight;
+            const newImgPos = this.canvasToImage(canvasPos.x, newCanvasY);
+            this.selectedWaypoint.imgX = newImgPos.x;
+            this.selectedWaypoint.imgY = newImgPos.y;
+            // Emit position changed event
+            this.eventBus.emit('waypoint:position-changed', this.selectedWaypoint);
           }
           break;
           
@@ -649,6 +669,107 @@ class RoutePlotter {
           this.updateWaypointEditor();
           break;
       }
+    });
+  }
+  
+  /**
+   * Queue a render operation to be executed on next animation frame
+   * Prevents multiple renders in same frame for better performance
+   * Example: Changing 3 waypoint properties = 1 render instead of 3
+   */
+  queueRender() {
+    if (!this.renderQueued) {
+      this.renderQueued = true;
+      requestAnimationFrame(() => {
+        this.render();
+        this.renderQueued = false;
+      });
+    }
+  }
+  
+  /**
+   * Set up EventBus listeners for decoupled component communication
+   * Uses event-driven architecture to reduce tight coupling between methods
+   * Events are categorized by change type for optimal performance:
+   * - position-changed: Requires path recalculation (expensive)
+   * - style-changed: Only visual update needed (cheap)
+   * - path-property-changed: Affects path generation (medium cost)
+   */
+  setupEventBusListeners() {
+    // ========== WAYPOINT LIFECYCLE EVENTS ==========
+    
+    /**
+     * waypoint:added - New waypoint created
+     * Triggers: Full update pipeline (path, list, save, render)
+     */
+    this.eventBus.on('waypoint:added', (waypoint) => {
+      if (this.waypoints.length >= 2) {
+        this.calculatePath(); // Only calculate if we have enough waypoints for a path
+      }
+      this.updateWaypointList();
+      this.autoSave();
+      this.queueRender(); // Batched render
+    });
+    
+    /**
+     * waypoint:deleted - Waypoint removed
+     * Triggers: Full update pipeline
+     */
+    this.eventBus.on('waypoint:deleted', (index) => {
+      if (this.waypoints.length >= 2) {
+        this.calculatePath();
+      } else {
+        this.pathPoints = []; // Clear path if too few waypoints
+      }
+      this.updateWaypointList();
+      this.updateWaypointEditor();
+      this.autoSave();
+      this.queueRender();
+    });
+    
+    /**
+     * waypoint:selected - Waypoint selected in UI
+     * Triggers: Only UI update
+     */
+    this.eventBus.on('waypoint:selected', (waypoint) => {
+      this.updateWaypointEditor();
+      this.queueRender(); // Highlight selection
+    });
+    
+    // ========== WAYPOINT PROPERTY CHANGE EVENTS ==========
+    
+    /**
+     * waypoint:position-changed - Waypoint moved/dragged
+     * MOST EXPENSIVE: Requires full path recalculation
+     * Note: During drag, path is calculated immediately for smooth feedback
+     * Event is only emitted on mouseup to trigger auto-save once
+     */
+    this.eventBus.on('waypoint:position-changed', (waypoint) => {
+      this.calculatePath(); // Recalculate path with new position
+      this.updateWaypointList();
+      this.autoSave(); // Debounced in StorageService
+      this.queueRender();
+    });
+    
+    /**
+     * waypoint:style-changed - Visual properties changed
+     * LEAST EXPENSIVE: Only re-render, no path calculation needed
+     * Examples: dot color, dot size, marker style, beacon color, label
+     */
+    this.eventBus.on('waypoint:style-changed', (waypoint) => {
+      this.queueRender(); // Visual update only
+      this.autoSave();
+    });
+    
+    /**
+     * waypoint:path-property-changed - Properties affecting path generation
+     * MEDIUM EXPENSE: Requires path recalculation
+     * Examples: segment color, segment width, segment style, path shape
+     */
+    this.eventBus.on('waypoint:path-property-changed', (waypoint) => {
+      this.calculatePath(); // Path appearance changed
+      this.autoSave();
+      this.queueRender();
     });
   }
   
@@ -669,7 +790,10 @@ class RoutePlotter {
       this.dragOffset.x = x - wpCanvas.x;
       this.dragOffset.y = y - wpCanvas.y;
       this.canvas.classList.add('dragging');
-      this.updateWaypointList();
+      
+      // Emit selection event (updates editor UI)
+      this.eventBus.emit('waypoint:selected', clickedWaypoint);
+      this.updateWaypointList(); // Update list to show selection
       event.preventDefault();
     }
   }
@@ -688,7 +812,10 @@ class RoutePlotter {
       this.selectedWaypoint.imgY = imgPos.y;
       this.hasDragged = true; // Mark that actual dragging occurred
       
+      // Update path immediately for smooth visual feedback during drag
       this.calculatePath();
+      // Batch render calls to prevent excessive rendering (60fps → ~2-3fps)
+      this.queueRender();
     }
   }
   
@@ -696,13 +823,16 @@ class RoutePlotter {
     if (this.isDragging) {
       this.isDragging = false;
       this.canvas.classList.remove('dragging');
-      this.updateWaypointList();
-      // Save only if a drag actually happened
-      if (this.hasDragged) {
-        this.autoSave();
+      
+      // Emit position changed event if waypoint was actually moved
+      // This triggers single auto-save instead of 60+ during drag
+      if (this.hasDragged && this.selectedWaypoint) {
+        this.eventBus.emit('waypoint:position-changed', this.selectedWaypoint);
         this.hasDragged = false;
         this.announce('Waypoint moved');
       }
+      
+      this.updateWaypointList();
     }
   }
   
@@ -774,22 +904,22 @@ class RoutePlotter {
       pathHeadSize: previousWaypoint.pathHeadSize || this.styles.pathHead.size
     } : defaultProps;
     
-    // Add waypoint
-    this.waypoints.push({
+    // Create waypoint object
+    const newWaypoint = {
       imgX: imgPos.x,
       imgY: imgPos.y,
       isMajor,
       id: Date.now(), // Unique ID for list management
       ...inheritedProps
-    });
+    };
     
-    // Recalculate path if we have enough waypoints
-    if (this.waypoints.length >= 2) {
-      this.calculatePath();
-    }
+    // Add waypoint to array
+    this.waypoints.push(newWaypoint);
     
-    this.updateWaypointList();
-    this.autoSave();
+    // Emit waypoint added event (triggers path calculation, save, render)
+    // Decoupled approach prevents tight coupling to specific update sequence
+    this.eventBus.emit('waypoint:added', newWaypoint);
+    
     this.announce(`${isMajor ? 'Major' : 'Minor'} waypoint added`);
     console.log(`Added ${isMajor ? 'major' : 'minor'} waypoint at (${x.toFixed(0)}, ${y.toFixed(0)})`);
   }
@@ -940,10 +1070,11 @@ class RoutePlotter {
       if (this.selectedWaypoint === waypoint) {
         this.selectedWaypoint = null;
       }
-      this.calculatePath();
-      this.updateWaypointList();
-      this.updateWaypointEditor();
-      this.autoSave();
+      
+      // Emit waypoint deleted event (triggers path recalc, UI update, save)
+      // Event-driven approach ensures consistent update sequence
+      this.eventBus.emit('waypoint:deleted', index);
+      
       this.announce('Waypoint deleted');
     }
   }
