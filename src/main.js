@@ -839,32 +839,33 @@ class RoutePlotter {
   
   /**
    * Set up AnimationEngine event listeners
+   * AnimationEngine emits events through EventBus with 'animation:' prefix
    * Provides event-driven updates for animation state changes
    * Performance optimization: React to engine events instead of polling
    */
   setupAnimationEngineListeners() {
-    // Animation playback events
-    this.animationEngine.on('play', () => {
+    // Animation playback events - listen via EventBus
+    this.eventBus.on('animation:play', () => {
       this.elements.playPauseBtn.textContent = 'Pause';
       this.announce('Playing animation');
     });
     
-    this.animationEngine.on('pause', () => {
+    this.eventBus.on('animation:pause', () => {
       this.elements.playPauseBtn.textContent = 'Play';
       this.announce('Animation paused');
     });
     
-    this.animationEngine.on('complete', () => {
+    this.eventBus.on('animation:complete', () => {
       this.elements.playPauseBtn.textContent = 'Play';
       this.announce('Animation complete');
     });
     
-    this.animationEngine.on('reset', () => {
+    this.eventBus.on('animation:reset', () => {
       this.announce('Animation reset');
     });
     
     // Waypoint wait events
-    this.animationEngine.on('waypointWaitEnd', (waypointIndex) => {
+    this.eventBus.on('animation:waypointWaitEnd', (waypointIndex) => {
       console.log('Wait complete at waypoint', waypointIndex);
       this.announce('Continuing animation');
     });
