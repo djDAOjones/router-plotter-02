@@ -160,7 +160,11 @@ class RoutePlotter {
   init() {
     // Set up canvas size
     this.resizeCanvas();
-    window.addEventListener('resize', () => this.resizeCanvas());
+    window.addEventListener('resize', () => {
+      this.resizeCanvas();
+      // Re-render after resize to rescale markers and waypoints
+      this.render();
+    });
     
     // Initialize marker style controls
     this.elements.markerStyle.value = this.styles.markerStyle;
@@ -211,6 +215,10 @@ class RoutePlotter {
     
     // Set up AnimationEngine event listeners
     this.setupAnimationEngineListeners();
+    
+    // Set default animation state: at end position, not playing
+    this.animationEngine.seekToProgress(1.0);
+    this.animationEngine.pause();
     
     // Initial render
     this.render();
@@ -498,6 +506,7 @@ class RoutePlotter {
       }
       
       this.updateTimeDisplay();
+      this.autoSave(); // Save speed changes
     });
     
     // Waypoint pause time (in waypoint editor)
@@ -1594,6 +1603,11 @@ class RoutePlotter {
       }
       this.calculatePath();
       this.updateWaypointList();
+      
+      // Set animation to end position by default (not playing)
+      this.animationEngine.seekToProgress(1.0);
+      this.animationEngine.pause();
+      
       this.announce('Previous session restored');
     } catch (e) {
       console.warn('No autosave found or failed to load');
