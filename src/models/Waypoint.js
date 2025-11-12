@@ -13,6 +13,9 @@ export class Waypoint {
     // Type
     this.isMajor = options.isMajor !== undefined ? options.isMajor : true;
     
+    // Property change tracking for performance optimization
+    this._dirtyProps = new Set();
+    
     // Visual properties
     this.segmentColor = options.segmentColor || RENDERING.DEFAULT_PATH_COLOR;
     this.segmentWidth = options.segmentWidth || RENDERING.DEFAULT_PATH_THICKNESS;
@@ -66,12 +69,17 @@ export class Waypoint {
   
   /**
    * Update waypoint properties
+   * Tracks which properties changed for smart event emission
    * @param {Object} updates - Properties to update
    */
   update(updates) {
     Object.keys(updates).forEach(key => {
       if (key in this && key !== 'id' && key !== 'created') {
-        this[key] = updates[key];
+        // Track changes for smart event emissions
+        if (this[key] !== updates[key]) {
+          this[key] = updates[key];
+          this._dirtyProps.add(key);
+        }
       }
     });
     this.modified = Date.now();
@@ -148,6 +156,83 @@ export class Waypoint {
    */
   isVisible() {
     return this.markerStyle !== 'none';
+  }
+  
+  /**
+   * Copy properties from another waypoint (for inheritance)
+   * Useful when creating new waypoints that should inherit style from previous
+   * @param {Waypoint} source - Waypoint to copy properties from
+   * @param {Array<string>} exclude - Properties to exclude from copying
+   * @returns {Waypoint} This waypoint (for chaining)
+   */
+  copyPropertiesFrom(source, exclude = ['id', 'imgX', 'imgY', 'created', 'modified', 'label']) {
+    // Properties to copy (style and path properties)
+    const copyProps = [
+      'segmentColor', 'segmentWidth', 'segmentStyle', 'segmentTension',
+      'pathShape', 'markerStyle', 'dotColor', 'dotSize',
+      'beaconStyle', 'beaconColor', 'labelMode', 'labelPosition',
+      'pauseMode', 'pauseTime', 'pathHeadStyle', 'pathHeadColor',
+      'pathHeadSize', 'pathHeadImage', 'customImage'
+    ];
+    
+    copyProps.forEach(prop => {
+      if (!exclude.includes(prop) && prop in source) {
+        this[prop] = source[prop];
+      }
+    });
+    
+    // Adjust for waypoint type differences
+    if (!this.isMajor && source.isMajor) {
+      // Minor waypoints don't have labels, beacons, or pauses
+      this.labelMode = 'none';
+      this.beaconStyle = 'none';
+      this.pauseMode = 'none';
+    }
+    
+    this.modified = Date.now();
+    return this; // Chainable
+  }
+  
+  /**
+   * Get list of properties that have changed since last clear
+   * @returns {Array<string>} Array of property names that changed
+   */
+  getDirtyProps() {
+    return Array.from(this._dirtyProps);
+  }
+  
+  /**
+   * Clear the dirty properties tracker
+   */
+  clearDirtyProps() {
+    this._dirtyProps.clear();
+  }
+  
+  /**
+   * Check if recent changes are style-only (no path recalculation needed)
+   * @returns {boolean} True if only style properties changed
+   */
+  isStyleChange() {
+    const styleProps = ['dotColor', 'dotSize', 'markerStyle', 'beaconColor', 'beaconStyle', 'label', 'labelMode', 'labelPosition'];
+    return this._dirtyProps.size > 0 &&
+           Array.from(this._dirtyProps).every(p => styleProps.includes(p));
+  }
+  
+  /**
+   * Check if recent changes affect path generation
+   * @returns {boolean} True if path properties changed
+   */
+  isPathChange() {
+    const pathProps = ['segmentColor', 'segmentWidth', 'segmentStyle', 'pathShape', 'segmentTension'];
+    return Array.from(this._dirtyProps).some(p => pathProps.includes(p));
+  }
+  
+  /**
+   * Check if position changed
+   * @returns {boolean} True if position changed
+   */
+  isPositionChange() {
+    return this._dirtyProps.has('imgX') || this._dirtyProps.has('imgY');
   }
   
   /**

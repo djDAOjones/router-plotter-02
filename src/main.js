@@ -6,6 +6,7 @@ import { StorageService } from './services/StorageService.js';
 import { CoordinateTransform } from './services/CoordinateTransform.js';
 import { PathCalculator } from './services/PathCalculator.js';
 import { EventBus } from './core/EventBus.js';
+import { Waypoint } from './models/Waypoint.js';
 
 // Main application class for Route Plotter v3
 class RoutePlotter {
@@ -19,12 +20,16 @@ class RoutePlotter {
     // Render optimization - batch multiple render requests into single frame
     this.renderQueued = false;
     
+    // Batch mode for loading operations (prevents redundant calculations)
+    this._batchMode = false;
+    
     // DOM Elements
     this.canvas = document.getElementById('canvas');
     this.ctx = this.canvas.getContext('2d');
     
     // Waypoints and path data
-    this.waypoints = [];
+    this.waypoints = []; // Will hold Waypoint model instances
+    this.waypointsById = new Map(); // O(1) lookup by waypoint ID
     this.pathPoints = [];
     this.selectedWaypoint = null;
     this.isDragging = false;
@@ -688,6 +693,56 @@ class RoutePlotter {
   }
   
   /**
+   * Begin batch mode - prevents redundant calculations during bulk operations
+   * Use when adding/loading multiple waypoints at once
+   */
+  beginBatch() {
+    this._batchMode = true;
+  }
+  
+  /**
+   * End batch mode and trigger single update
+   * Calculates path once for all batched changes
+   */
+  endBatch() {
+    this._batchMode = false;
+    // Trigger single update for all batched changes
+    if (this.waypoints.length >= 2) {
+      this.calculatePath();
+    }
+    this.updateWaypointList();
+    this.autoSave();
+    this.queueRender();
+  }
+  
+  /**
+   * Get waypoint by ID with O(1) lookup
+   * @param {string} id - Waypoint ID
+   * @returns {Waypoint|undefined} Waypoint instance or undefined
+   */
+  getWaypointById(id) {
+    return this.waypointsById.get(id);
+  }
+  
+  /**
+   * Add waypoint to ID lookup map
+   * @private
+   * @param {Waypoint} waypoint - Waypoint to add
+   */
+  _addWaypointToMap(waypoint) {
+    this.waypointsById.set(waypoint.id, waypoint);
+  }
+  
+  /**
+   * Remove waypoint from ID lookup map
+   * @private
+   * @param {Waypoint} waypoint - Waypoint to remove
+   */
+  _removeWaypointFromMap(waypoint) {
+    this.waypointsById.delete(waypoint.id);
+  }
+  
+  /**
    * Set up EventBus listeners for decoupled component communication
    * Uses event-driven architecture to reduce tight coupling between methods
    * Events are categorized by change type for optimal performance:
@@ -701,8 +756,21 @@ class RoutePlotter {
     /**
      * waypoint:added - New waypoint created
      * Triggers: Full update pipeline (path, list, save, render)
+     * Skipped during batch mode for performance
      */
     this.eventBus.on('waypoint:added', (waypoint) => {
+      // Validate waypoint instance
+      if (!(waypoint instanceof Waypoint)) {
+        console.error('Invalid waypoint: not a Waypoint instance', waypoint);
+        return;
+      }
+      
+      // Add to ID lookup map for O(1) access
+      this._addWaypointToMap(waypoint);
+      
+      // Skip individual updates during batch operations
+      if (this._batchMode) return;
+      
       if (this.waypoints.length >= 2) {
         this.calculatePath(); // Only calculate if we have enough waypoints for a path
       }
@@ -745,6 +813,13 @@ class RoutePlotter {
      * Event is only emitted on mouseup to trigger auto-save once
      */
     this.eventBus.on('waypoint:position-changed', (waypoint) => {
+      // Validate position bounds and clamp if needed
+      if (waypoint.imgX < 0 || waypoint.imgX > 1 || 
+          waypoint.imgY < 0 || waypoint.imgY > 1) {
+        console.warn('Waypoint position out of bounds, clamping:', waypoint.id);
+        waypoint.setPosition(waypoint.imgX, waypoint.imgY); // Uses Math.max/min internally
+      }
+      
       this.calculatePath(); // Recalculate path with new position
       this.updateWaypointList();
       this.autoSave(); // Debounced in StorageService
@@ -856,69 +931,36 @@ class RoutePlotter {
       return;
     }
     
-    // Determine if major or minor waypoint
+    // Determine if major or minor waypoint (Shift+Click for minor)
     const isMajor = !event.shiftKey;
     
     // Convert canvas coordinates to normalized image coordinates
     const imgPos = this.canvasToImage(x, y);
     
-    // Inherit properties from previous waypoint, or use defaults
-    const previousWaypoint = this.waypoints[this.waypoints.length - 1];
-    const defaultProps = {
-      segmentColor: this.styles.pathColor,
-      segmentWidth: this.styles.pathThickness,
-      segmentStyle: 'solid',
-      pathShape: 'line',
-      markerStyle: this.styles.markerStyle,
-      dotColor: this.styles.dotColor,
-      dotSize: this.styles.dotSize,
-      beaconStyle: 'none',
-      beaconColor: this.styles.beaconColor,
-      labelMode: 'none',
-      labelPosition: 'auto',
-      pauseMode: 'none',
-      pauseTime: 0,
-      pathHeadStyle: this.styles.pathHead.style,
-      pathHeadColor: this.styles.pathHead.color,
-      pathHeadSize: this.styles.pathHead.size
-    };
+    // Create waypoint using factory method
+    // Waypoint model handles default properties and validation
+    const waypoint = isMajor
+      ? Waypoint.createMajor(imgPos.x, imgPos.y)
+      : Waypoint.createMinor(imgPos.x, imgPos.y);
     
-    // If there's a previous waypoint, inherit its properties
-    const inheritedProps = previousWaypoint ? {
-      segmentColor: previousWaypoint.segmentColor,
-      segmentWidth: previousWaypoint.segmentWidth,
-      segmentStyle: previousWaypoint.segmentStyle,
-      pathShape: previousWaypoint.pathShape || 'line',
-      markerStyle: previousWaypoint.markerStyle || this.styles.markerStyle,
-      dotColor: previousWaypoint.dotColor,
-      dotSize: previousWaypoint.dotSize,
-      beaconStyle: isMajor ? (previousWaypoint.beaconStyle || this.styles.beaconStyle) : 'none',
-      beaconColor: previousWaypoint.beaconColor || this.styles.beaconColor,
-      label: isMajor ? `Waypoint ${this.waypoints.length + 1}` : '',
-      labelMode: isMajor ? (previousWaypoint.labelMode || this.styles.labelMode) : 'none',
-      labelPosition: previousWaypoint.labelPosition || this.styles.labelPosition,
-      pauseMode: isMajor ? (previousWaypoint.pauseMode || 'none') : 'none',
-      pauseTime: previousWaypoint.pauseTime || 0,
-      pathHeadStyle: previousWaypoint.pathHeadStyle || this.styles.pathHead.style,
-      pathHeadColor: previousWaypoint.pathHeadColor || this.styles.pathHead.color,
-      pathHeadSize: previousWaypoint.pathHeadSize || this.styles.pathHead.size
-    } : defaultProps;
+    // Set default label for major waypoints
+    if (isMajor) {
+      waypoint.label = `Waypoint ${this.waypoints.length + 1}`;
+    }
     
-    // Create waypoint object
-    const newWaypoint = {
-      imgX: imgPos.x,
-      imgY: imgPos.y,
-      isMajor,
-      id: Date.now(), // Unique ID for list management
-      ...inheritedProps
-    };
+    // Inherit properties from previous waypoint if exists
+    // This ensures consistent styling across the route
+    if (this.waypoints.length > 0) {
+      const previousWaypoint = this.waypoints[this.waypoints.length - 1];
+      waypoint.copyPropertiesFrom(previousWaypoint);
+    }
     
     // Add waypoint to array
-    this.waypoints.push(newWaypoint);
+    this.waypoints.push(waypoint);
     
     // Emit waypoint added event (triggers path calculation, save, render)
     // Decoupled approach prevents tight coupling to specific update sequence
-    this.eventBus.emit('waypoint:added', newWaypoint);
+    this.eventBus.emit('waypoint:added', waypoint);
     
     this.announce(`${isMajor ? 'Major' : 'Minor'} waypoint added`);
     console.log(`Added ${isMajor ? 'major' : 'minor'} waypoint at (${x.toFixed(0)}, ${y.toFixed(0)})`);
@@ -1066,7 +1108,13 @@ class RoutePlotter {
   deleteWaypoint(waypoint) {
     const index = this.waypoints.indexOf(waypoint);
     if (index > -1) {
+      // Remove from array
       this.waypoints.splice(index, 1);
+      
+      // Remove from ID lookup map
+      this._removeWaypointFromMap(waypoint);
+      
+      // Clear selection if this waypoint was selected
       if (this.selectedWaypoint === waypoint) {
         this.selectedWaypoint = null;
       }
@@ -1360,7 +1408,8 @@ class RoutePlotter {
   }
   
   clearAll() {
-    this.waypoints = [];
+    this.waypoints = []; // Clear Waypoint instances
+    this.waypointsById.clear(); // Clear ID lookup map
     this.pathPoints = [];
     this.selectedWaypoint = null;
     
@@ -1410,7 +1459,7 @@ class RoutePlotter {
       
       const data = {
         coordVersion: 6, // Version tracking for coordinate system changes
-        waypoints: this.waypoints,
+        waypoints: this.waypoints.map(wp => wp.toJSON()), // Serialize Waypoint instances
         styles: stylesCopy,
         animationState: this.animationState,
         background: {
@@ -1439,8 +1488,29 @@ class RoutePlotter {
         return;
       }
       
-      if (data.waypoints) {
-        this.waypoints = data.waypoints;
+      // Hydrate waypoints from plain objects to Waypoint instances
+      if (data.waypoints && Array.isArray(data.waypoints)) {
+        // Use batch mode to prevent redundant calculations during loading
+        this.beginBatch();
+        
+        // Convert plain objects to Waypoint instances with validation
+        this.waypoints = data.waypoints
+          .map(wpData => {
+            // Validate waypoint data before hydration
+            if (!Waypoint.validate(wpData)) {
+              console.warn('Invalid waypoint data, skipping:', wpData);
+              return null;
+            }
+            return Waypoint.fromJSON(wpData);
+          })
+          .filter(wp => wp !== null); // Remove invalid waypoints
+        
+        // Populate ID lookup map
+        this.waypoints.forEach(wp => this._addWaypointToMap(wp));
+        
+        // End batch mode - triggers single path calculation
+        this.endBatch();
+        
         console.log('Loaded waypoints:', this.waypoints.length);
       }
       if (data.styles) {
