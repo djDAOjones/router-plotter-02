@@ -4,6 +4,7 @@ import { Easing } from './utils/Easing.js';
 import { RENDERING, ANIMATION, INTERACTION, PATH } from './config/constants.js';
 import { StorageService } from './services/StorageService.js';
 import { CoordinateTransform } from './services/CoordinateTransform.js';
+import { PathCalculator } from './services/PathCalculator.js';
 
 // Main application class for Route Plotter v3
 class RoutePlotter {
@@ -11,6 +12,7 @@ class RoutePlotter {
     // Services
     this.storageService = new StorageService();
     this.coordinateTransform = new CoordinateTransform();
+    this.pathCalculator = new PathCalculator();
     
     // DOM Elements
     this.canvas = document.getElementById('canvas');
@@ -996,95 +998,18 @@ class RoutePlotter {
       return { ...wp, x: canvasPos.x, y: canvasPos.y };
     });
     
-    // Use Catmull-Rom splines with global tension for smoother curves
-    // Higher resolution for smooth curves
-    const rawPath = CatmullRom.createPath(canvasWaypoints, PATH.POINTS_PER_SEGMENT);
-    
-    // Reparameterize by arc length with corner slowing for realistic motion
-    this.pathPoints = this.reparameterizeWithCornerSlowing(rawPath, PATH.TARGET_SPACING); // pixels between points
-    
-    // Calculate total path length
-    let totalLength = 0;
-    for (let i = 1; i < this.pathPoints.length; i++) {
-      const dx = this.pathPoints[i].x - this.pathPoints[i-1].x;
-      const dy = this.pathPoints[i].y - this.pathPoints[i-1].y;
-      totalLength += Math.sqrt(dx * dx + dy * dy);
-    }
+    // Delegate path calculation to PathCalculator service (with optimizations)
+    this.pathPoints = this.pathCalculator.calculatePath(canvasWaypoints);
     
     // Calculate duration based on animation mode
     if (this.animationState.mode === 'constant-speed') {
+      const totalLength = this.pathCalculator.calculatePathLength(this.pathPoints);
       this.animationState.duration = (totalLength / this.animationState.speed) * 1000; // Convert to ms
     }
     // For constant-time mode, duration is already set by the slider
     
     // Update total time display
     this.updateTimeDisplay();
-  }
-  
-  reparameterizeWithCornerSlowing(rawPath, targetSpacing = 2) {
-    if (rawPath.length < 2) return rawPath;
-    
-    // Calculate curvature at each point
-    const curvatures = this.calculateCurvature(rawPath);
-    
-    // Build distance array with velocity modulation based on curvature
-    const distances = [0];
-    let totalDistance = 0;
-    
-    for (let i = 1; i < rawPath.length; i++) {
-      const dx = rawPath[i].x - rawPath[i-1].x;
-      const dy = rawPath[i].y - rawPath[i-1].y;
-      const physicalDist = Math.sqrt(dx * dx + dy * dy);
-      
-      // Calculate velocity factor based on curvature
-      // High curvature = slower, low curvature = faster
-      const curvature = curvatures[i];
-      const maxCurvature = PATH.MAX_CURVATURE; // Tune this for more/less slowing
-      const minSpeed = PATH.MIN_CORNER_SPEED; // Minimum 40% speed at tight corners
-      
-      // Apply quadratic easing for smoother corner slowing
-      const normalizedCurvature = Math.min(curvature / maxCurvature, 1);
-      const easedCurvature = Easing.quadIn(normalizedCurvature);
-      const velocityFactor = Math.max(minSpeed, 1 - easedCurvature * (1 - minSpeed));
-      
-      // Adjust distance based on velocity (slower = more time = more "distance" in time-space)
-      const adjustedDist = physicalDist / velocityFactor;
-      totalDistance += adjustedDist;
-      distances.push(totalDistance);
-    }
-    
-    // Create evenly-spaced points in adjusted distance space
-    const evenPath = [];
-    const numPoints = Math.floor(totalDistance / targetSpacing);
-    
-    for (let i = 0; i <= numPoints; i++) {
-      const targetDist = (i / numPoints) * totalDistance;
-      
-      // Find the segment containing this distance
-      let segmentIdx = 0;
-      for (let j = 1; j < distances.length; j++) {
-        if (distances[j] >= targetDist) {
-          segmentIdx = j - 1;
-          break;
-        }
-      }
-      
-      // Interpolate within the segment
-      const segStart = distances[segmentIdx];
-      const segEnd = distances[segmentIdx + 1];
-      const segLength = segEnd - segStart;
-      const t = segLength > 0 ? (targetDist - segStart) / segLength : 0;
-      
-      const p1 = rawPath[segmentIdx];
-      const p2 = rawPath[segmentIdx + 1] || p1;
-      
-      evenPath.push({
-        x: p1.x + (p2.x - p1.x) * t,
-        y: p1.y + (p2.y - p1.y) * t
-      });
-    }
-    
-    return evenPath;
   }
   
   // Get positions of major waypoints as normalized progress values (0-1)
@@ -1240,57 +1165,7 @@ class RoutePlotter {
   }
   
   // Easing functions moved to utils/Easing.js for better modularity and performance
-  
-  calculateCurvature(path) {
-    const curvatures = [];
-    
-    for (let i = 0; i < path.length; i++) {
-      if (i === 0 || i === path.length - 1) {
-        // No curvature at endpoints
-        curvatures.push(0);
-        continue;
-      }
-      
-      // Use three points to estimate curvature
-      const p0 = path[i - 1];
-      const p1 = path[i];
-      const p2 = path[i + 1];
-      
-      // Calculate vectors
-      const v1x = p1.x - p0.x;
-      const v1y = p1.y - p0.y;
-      const v2x = p2.x - p1.x;
-      const v2y = p2.y - p1.y;
-      
-      // Calculate lengths
-      const len1 = Math.sqrt(v1x * v1x + v1y * v1y);
-      const len2 = Math.sqrt(v2x * v2x + v2y * v2y);
-      
-      if (len1 === 0 || len2 === 0) {
-        curvatures.push(0);
-        continue;
-      }
-      
-      // Normalize vectors
-      const n1x = v1x / len1;
-      const n1y = v1y / len1;
-      const n2x = v2x / len2;
-      const n2y = v2y / len2;
-      
-      // Calculate angle change (cross product gives sin of angle)
-      const crossProduct = n1x * n2y - n1y * n2x;
-      const dotProduct = n1x * n2x + n1y * n2y;
-      const angle = Math.atan2(crossProduct, dotProduct);
-      
-      // Curvature is angle change divided by average segment length
-      const avgLen = (len1 + len2) / 2;
-      const curvature = avgLen > 0 ? Math.abs(angle) / avgLen : 0;
-      
-      curvatures.push(curvature);
-    }
-    
-    return curvatures;
-  }
+  // Corner slowing and curvature calculation moved to services/PathCalculator.js
   
   play() {
     if (this.waypoints.length < 2) return;
