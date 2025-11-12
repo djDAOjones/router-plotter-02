@@ -1566,14 +1566,17 @@ class RoutePlotter {
       if (data.styles) {
         this.styles = { ...this.styles, ...data.styles };
       }
+      
+      // IMPORTANT: Load animation state BEFORE calculating path
+      // This ensures path calculation uses the correct saved speed
       if (data.animationState) {
         const savedState = data.animationState;
         
         // Restore animation state to AnimationEngine
         this.animationEngine.setMode(savedState.mode || 'constant-speed');
         this.animationEngine.setSpeed(savedState.speed || ANIMATION.DEFAULT_SPEED);
-        this.animationEngine.setDuration(savedState.duration || 5000);
         this.animationEngine.setPlaybackSpeed(savedState.playbackSpeed || 1);
+        // Don't restore duration yet - will be recalculated from path length + speed
         
         // Update UI to match loaded values
         if (this.elements.animationSpeed) {
@@ -1586,6 +1589,7 @@ class RoutePlotter {
           this.elements.speedControl.style.display = 'flex';
         }
       }
+      
       if (data.background) {
         this.background.overlay = data.background.overlay ?? this.background.overlay;
         this.background.fit = data.background.fit ?? this.background.fit;
@@ -1601,6 +1605,8 @@ class RoutePlotter {
           this.elements.bgOverlayValue.textContent = String(this.background.overlay);
         }
       }
+      
+      // Calculate path with loaded speed - this will recalculate correct duration
       this.calculatePath();
       this.updateWaypointList();
       
