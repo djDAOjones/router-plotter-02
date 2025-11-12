@@ -179,7 +179,7 @@ class RoutePlotter {
       this.styles.pathHead.style === 'custom' ? 'block' : 'none';
     
     // Initialize animation speed to show time
-    const defaultDuration = this.animationState.duration / 1000;
+    const defaultDuration = this.animationEngine.state.duration / 1000;
     this.elements.animationSpeedValue.textContent = defaultDuration + 's';
     
     // Set up event listeners
@@ -219,27 +219,6 @@ class RoutePlotter {
     this.startRenderLoop();
     
     console.log('Route Plotter v3 initialized');
-  }
-  
-  calculateAnimationDuration() {
-    if (!this.pathPoints || this.pathPoints.length < 2) {
-      return 5000; // Default 5 seconds if no path
-    }
-    
-    // Calculate total path length in pixels
-    let totalLength = 0;
-    for (let i = 1; i < this.pathPoints.length; i++) {
-      const p1 = this.pathPoints[i - 1];
-      const p2 = this.pathPoints[i];
-      const dx = p2.x - p1.x;
-      const dy = p2.y - p1.y;
-      totalLength += Math.sqrt(dx * dx + dy * dy);
-    }
-    
-    // Calculate duration based on speed (pixels per second)
-    const durationMs = (totalLength / this.animationState.speed) * 1000;
-    this.animationState.duration = durationMs;
-    return durationMs;
   }
   
   resizeCanvas() {
@@ -1205,7 +1184,7 @@ class RoutePlotter {
     this.pathPoints = [];
     
     if (this.waypoints.length < 2) {
-      this.animationState.duration = 0;
+      this.animationEngine.setDuration(0);
       return;
     }
     
@@ -1921,8 +1900,8 @@ class RoutePlotter {
           const atWaypoint = Math.abs(currentProgress - exactWaypointProgress) < 0.001;
           
           // Show beacon exactly when paused at this waypoint
-          const isPausedHere = this.animationState.isPaused && 
-                              this.animationState.pauseWaypointIndex === wpIndex;
+          const isPausedHere = this.animationEngine.state.isPaused && 
+                              this.animationEngine.state.pauseWaypointIndex === wpIndex;
           
           // Show beacon when either exactly at waypoint or paused at it
           if (atWaypoint || isPausedHere) {
