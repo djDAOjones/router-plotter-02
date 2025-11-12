@@ -36,3 +36,6 @@ logs/
 
 # OS files
 Thumbs.db
+
+# Archive folders
+Obsolete/
