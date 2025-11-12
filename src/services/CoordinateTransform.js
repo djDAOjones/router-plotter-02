@@ -1,6 +1,7 @@
 /**
  * Service for handling coordinate transformations between different coordinate systems
- * Manages conversions between canvas, image, and normalized coordinates
+ * Simplified version using 1:1 mapping when canvas matches image dimensions
+ * Falls back to complex transformation for fit/fill modes
  */
 export class CoordinateTransform {
   constructor() {
@@ -127,12 +128,20 @@ export class CoordinateTransform {
   
   /**
    * Convert canvas coordinates to normalized image coordinates (0-1)
-   * Optimized using pre-calculated transformation matrix
+   * Simplified for 1:1 mapping when canvas matches image
    * @param {number} canvasX - X coordinate on canvas
    * @param {number} canvasY - Y coordinate on canvas
-   * @returns {Object} Normalized image coordinates {x, y}
+   * @returns {{x: number, y: number}} Normalized image coordinates (0-1)
    */
   canvasToImage(canvasX, canvasY) {
+    // Check for 1:1 mapping scenario (canvas matches image)
+    if (this.canvasWidth === this.imageWidth && this.canvasHeight === this.imageHeight) {
+      // Direct 1:1 mapping - no transformation needed
+      return {
+        x: canvasX / this.canvasWidth,
+        y: canvasY / this.canvasHeight
+      };
+    }
     if (!this.transform) {
       // No image loaded, return normalized canvas coordinates
       return {
@@ -155,12 +164,20 @@ export class CoordinateTransform {
   
   /**
    * Convert normalized image coordinates (0-1) to canvas coordinates
-   * Optimized using pre-calculated transformation matrix
+   * Simplified for 1:1 mapping when canvas matches image
    * @param {number} imageX - Normalized X coordinate (0-1)
    * @param {number} imageY - Normalized Y coordinate (0-1)
-   * @returns {Object} Canvas coordinates {x, y}
+   * @returns {{x: number, y: number}} Canvas coordinates
    */
   imageToCanvas(imageX, imageY) {
+    // Check for 1:1 mapping scenario (canvas matches image)
+    if (this.canvasWidth === this.imageWidth && this.canvasHeight === this.imageHeight) {
+      // Direct 1:1 mapping - no transformation needed
+      return {
+        x: imageX * this.canvasWidth,
+        y: imageY * this.canvasHeight
+      };
+    }
     if (!this.transform) {
       // No image loaded, convert from normalized to canvas coordinates
       return {

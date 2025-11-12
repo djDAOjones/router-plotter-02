@@ -4,13 +4,11 @@ import { Easing } from './utils/Easing.js';
 import { RENDERING, ANIMATION, INTERACTION, PATH } from './config/constants.js';
 import { StorageService } from './services/StorageService.js';
 import { CoordinateTransform } from './services/CoordinateTransform.js';
-import { PathCalculatorWithWorker } from './services/PathCalculatorWithWorker.js';
+import { PathCalculator } from './services/PathCalculator.js';
 import { AnimationEngine } from './services/AnimationEngine.js';
 import { RenderingService } from './services/RenderingService.js';
 import { EventBus } from './core/EventBus.js';
 import { Waypoint } from './models/Waypoint.js';
-import { UIController } from './controllers/UIController.js';
-import { InteractionHandler } from './handlers/InteractionHandler.js';
 
 // Main application class for Route Plotter v3
 class RoutePlotter {
@@ -18,7 +16,7 @@ class RoutePlotter {
     // Services
     this.storageService = new StorageService();
     this.coordinateTransform = new CoordinateTransform();
-    this.pathCalculator = new PathCalculatorWithWorker(); // Use Web Worker version
+    this.pathCalculator = new PathCalculator();
     this.renderingService = new RenderingService();
     this.eventBus = new EventBus(); // Event-driven architecture for decoupled communication
     this.animationEngine = new AnimationEngine(this.eventBus); // Animation loop management
@@ -196,13 +194,6 @@ class RoutePlotter {
     // Set up EventBus listeners for decoupled component communication
     this.setupEventBusListeners();
     
-    // Initialize UI Controller and Interaction Handler
-    this.uiController = new UIController(this.elements, this.eventBus);
-    this.interactionHandler = new InteractionHandler(this.canvas, this.eventBus);
-    
-    // Set up controller event connections
-    this.setupControllerEventConnections();
-    
     // Show splash on first load
     if (this.storageService.shouldShowSplash()) {
       this.showSplash();
@@ -294,7 +285,7 @@ class RoutePlotter {
       });
     });
     
-    /* Canvas events now handled by InteractionHandler
+    // Canvas events for waypoint interaction
     this.canvas.addEventListener('mousedown', (e) => this.handleMouseDown(e));
     this.canvas.addEventListener('mousemove', (e) => this.handleMouseMove(e));
     this.canvas.addEventListener('mouseup', (e) => this.handleMouseUp(e));
@@ -318,9 +309,8 @@ class RoutePlotter {
         });
       }
     });
-    */
     
-    /* Header and transport controls now handled by UIController
+    // Header controls
     this.elements.helpBtn.addEventListener('click', () => this.showSplash());
     this.elements.clearBtn.addEventListener('click', () => this.clearAll());
     
@@ -584,7 +574,7 @@ class RoutePlotter {
       this.autoSave();
     });
     
-    /* Keyboard shortcuts now handled by InteractionHandler
+    // Keyboard shortcuts
     document.addEventListener('keydown', (e) => {
       const nudgeAmount = e.shiftKey ? 0.05 : 0.01; // 5% or 1%
       const canvasWidth = this.canvas.width;
@@ -679,7 +669,6 @@ class RoutePlotter {
           break;
       }
     });
-    */
   }
   
   /**
@@ -902,199 +891,6 @@ class RoutePlotter {
     });
   }
   
-  /**
-   * Set up event connections for UI Controller and Interaction Handler
-   */
-  setupControllerEventConnections() {
-    // Background events from UIController
-    this.eventBus.on('background:upload', (file) => {
-      this.loadImageFile(file).then(img => {
-        this.background.image = img;
-        this.updateImageTransform(img);
-        if (this.waypoints.length >= 2) {
-          this.calculatePath();
-        }
-        this.render();
-        this.autoSave();
-      });
-    });
-    
-    this.eventBus.on('background:overlay-change', (value) => {
-      this.background.overlay = value;
-      this.render();
-      this.autoSave();
-    });
-    
-    this.eventBus.on('background:mode-change', (mode) => {
-      this.background.fit = mode;
-      this.coordinateTransform.fitMode = mode;
-      this.updateImageTransform(this.background.image);
-      this.render();
-      this.autoSave();
-    });
-    
-    // Animation events from UIController
-    this.eventBus.on('animation:play', () => {
-      // If animation is at 100%, restart from beginning
-      if (this.animationEngine.getProgress() >= 1.0) {
-        this.animationEngine.reset();
-      }
-      this.animationEngine.play();
-    });
-    this.eventBus.on('animation:pause', () => this.animationEngine.pause());
-    this.eventBus.on('animation:skip-start', () => this.animationEngine.reset());
-    this.eventBus.on('animation:skip-end', () => this.animationEngine.seekToProgress(1.0));
-    this.eventBus.on('animation:seek', (progress) => this.animationEngine.seekToProgress(progress));
-    this.eventBus.on('animation:speed-change', (speed) => this.animationEngine.setSpeed(speed));
-    this.eventBus.on('animation:toggle', () => {
-      if (this.animationEngine.state.isPlaying) {
-        this.animationEngine.pause();
-      } else {
-        this.animationEngine.play();
-      }
-    });
-    
-    // Playback speed events from InteractionHandler
-    this.eventBus.on('animation:speed-decrease', () => {
-      const current = this.animationEngine.state.playbackSpeed;
-      this.animationEngine.setPlaybackSpeed(Math.max(0.1, current - 0.1));
-    });
-    
-    this.eventBus.on('animation:speed-reset', () => {
-      this.animationEngine.setPlaybackSpeed(1.0);
-    });
-    
-    this.eventBus.on('animation:speed-increase', () => {
-      const current = this.animationEngine.state.playbackSpeed;
-      this.animationEngine.setPlaybackSpeed(Math.min(10, current + 0.1));
-    });
-    
-    // Waypoint events from InteractionHandler
-    this.eventBus.on('waypoint:add', (data) => {
-      const waypoint = data.isMajor ? 
-        Waypoint.createMajor(data.imgX, data.imgY) : 
-        Waypoint.createMinor(data.imgX, data.imgY);
-      
-      // Copy properties from last waypoint if exists
-      if (this.waypoints.length > 0) {
-        const lastWaypoint = this.waypoints[this.waypoints.length - 1];
-        waypoint.copyPropertiesFrom(lastWaypoint);
-      }
-      
-      this.waypoints.push(waypoint);
-      this._addWaypointToMap(waypoint);
-      this.eventBus.emit('waypoint:added', waypoint);
-    });
-    
-    this.eventBus.on('waypoint:position-changed', (data) => {
-      const { waypoint, imgX, imgY, isDragging } = data;
-      waypoint.imgX = imgX;
-      waypoint.imgY = imgY;
-      
-      if (!isDragging) {
-        this.autoSave();
-      }
-      
-      this.eventBus.emit('waypoint:position-updated', waypoint);
-    });
-    
-    this.eventBus.on('waypoint:selected', (waypoint) => {
-      this.selectedWaypoint = waypoint;
-      this.interactionHandler?.setSelectedWaypoint(waypoint);
-      this.uiController?.updateWaypointEditor(waypoint);
-      this.updateWaypointList();
-    });
-    
-    this.eventBus.on('waypoint:deleted', (waypoint) => {
-      this.deleteWaypoint(waypoint);
-    });
-    
-    this.eventBus.on('waypoint:delete-selected', () => {
-      if (this.selectedWaypoint) {
-        this.deleteWaypoint(this.selectedWaypoint);
-        this.selectedWaypoint = null;
-      }
-    });
-    
-    this.eventBus.on('waypoints:clear-all', () => {
-      this.clearAll();
-    });
-    
-    // Waypoint reordering from UIController drag-and-drop
-    this.eventBus.on('waypoints:reordered', (newOrder) => {
-      // Find all major waypoints and update their order
-      const allWaypoints = [...this.waypoints];
-      const minorWaypoints = allWaypoints.filter(wp => !wp.isMajor);
-      
-      // Rebuild waypoints array with new major order, keeping minors in place
-      this.waypoints = [];
-      let majorIndex = 0;
-      
-      allWaypoints.forEach(wp => {
-        if (wp.isMajor) {
-          this.waypoints.push(newOrder[majorIndex]);
-          majorIndex++;
-        } else {
-          this.waypoints.push(wp);
-        }
-      });
-      
-      // Recalculate path and update
-      if (this.waypoints.length >= 2) {
-        this.calculatePath();
-      }
-      this.updateWaypointList();
-      this.autoSave();
-      this.render();
-    });
-    
-    // Coordinate conversion callbacks
-    this.eventBus.on('coordinate:canvas-to-image', (data, callback) => {
-      const result = this.canvasToImage(data.canvasX, data.canvasY);
-      if (callback) callback(result);
-    });
-    
-    this.eventBus.on('coordinate:image-to-canvas', (data, callback) => {
-      const result = this.imageToCanvas(data.imgX, data.imgY);
-      if (callback) callback(result);
-    });
-    
-    this.eventBus.on('waypoint:check-at-position', (pos, callback) => {
-      const waypoint = this.findWaypointAt(pos.x, pos.y);
-      if (callback) callback(waypoint);
-    });
-    
-    // Help events
-    this.eventBus.on('help:toggle', () => {
-      if (this.elements.splash.style.display === 'none' || 
-          this.elements.splash.style.display === '') {
-        this.showSplash();
-      } else {
-        this.hideSplash();
-      }
-    });
-    
-    // Path head style events
-    this.eventBus.on('pathhead:style-changed', (style) => {
-      this.styles.pathHead.style = style;
-      this.render();
-      this.autoSave();
-    });
-    
-    this.eventBus.on('pathhead:color-changed', (color) => {
-      this.styles.pathHead.color = color;
-      this.render();
-      this.autoSave();
-    });
-    
-    this.eventBus.on('pathhead:size-changed', (size) => {
-      this.styles.pathHead.size = size;
-      this.render();
-      this.autoSave();
-    });
-  }
-  
-  /* Mouse handlers now managed by InteractionHandler
   handleMouseDown(event) {
     const rect = this.canvas.getBoundingClientRect();
     const x = event.clientX - rect.left;
@@ -1212,7 +1008,6 @@ class RoutePlotter {
     this.announce(`${isMajor ? 'Major' : 'Minor'} waypoint added`);
     console.log(`Added ${isMajor ? 'major' : 'minor'} waypoint at (${x.toFixed(0)}, ${y.toFixed(0)})`);
   }
-  */ // End of mouse/keyboard handlers now managed by InteractionHandler
   
   findWaypointAt(x, y) {
     const threshold = INTERACTION.WAYPOINT_HIT_RADIUS; // pixels
@@ -1225,14 +1020,9 @@ class RoutePlotter {
   }
   
   updateWaypointList() {
-    // Delegate to UIController
-    if (this.uiController) {
-      this.uiController.updateWaypointList(this.waypoints);
-      return;
-    }
-    
-    // Fallback if UIController not initialized
     this.elements.waypointList.innerHTML = '';
+    
+    // Only show major waypoints in the list
     const majorWaypoints = this.waypoints.filter(wp => wp.isMajor);
     
     majorWaypoints.forEach((waypoint, index) => {
@@ -1411,32 +1201,27 @@ class RoutePlotter {
     return this.coordinateTransform.imageToCanvas(imageX, imageY);
   }
   
-  async calculatePath() {
+  calculatePath() {
     this.pathPoints = [];
     
     if (this.waypoints.length < 2) {
+      this.animationEngine.setDuration(0);
       return;
     }
     
-    // Convert waypoint image coordinates to canvas coordinates
-    // This ensures the path is rendered correctly on the canvas
+    // Convert waypoints from normalized image coords to canvas coords for path calculation
     const canvasWaypoints = this.waypoints.map(wp => {
       const canvasPos = this.imageToCanvas(wp.imgX, wp.imgY);
-      return {
-        ...wp,
-        x: canvasPos.x,
-        y: canvasPos.y
-      };
+      // Safety check
+      if (!isFinite(canvasPos.x) || !isFinite(canvasPos.y)) {
+        console.warn('Invalid waypoint canvas position:', wp, canvasPos);
+        return { ...wp, x: 0, y: 0 }; // Fallback to origin
+      }
+      return { ...wp, x: canvasPos.x, y: canvasPos.y };
     });
     
-    try {
-      // Try to use async Web Worker calculation
-      this.pathPoints = await this.pathCalculator.calculatePathAsync(canvasWaypoints);
-    } catch (error) {
-      console.warn('Async path calculation failed, falling back to sync:', error);
-      // Fall back to synchronous calculation
-      this.pathPoints = this.pathCalculator.calculatePath(canvasWaypoints);
-    }
+    // Delegate path calculation to PathCalculator service (with optimizations)
+    this.pathPoints = this.pathCalculator.calculatePath(canvasWaypoints);
     
     // Performance optimization: Debounce duration calculation
     // Prevents redundant calculations during multi-waypoint operations
@@ -2574,49 +2359,6 @@ class RoutePlotter {
     
     // Reset global alpha to prevent affecting subsequent draws
     this.ctx.globalAlpha = 1.0;
-  }
-  
-  /**
-   * Clean up resources and event listeners
-   */
-  destroy() {
-    // Stop animation
-    this.animationEngine?.stop();
-    
-    // Clean up controllers
-    this.interactionHandler?.destroy();
-    this.pathCalculator?.destroy();
-    
-    // Remove all event listeners
-    this.eventBus?.removeAll();
-    
-    // Clear render queue
-    if (this.renderQueued) {
-      cancelAnimationFrame(this.renderQueued);
-      this.renderQueued = false;
-    }
-    
-    // Clear timeouts
-    if (this._durationUpdateTimeout) {
-      clearTimeout(this._durationUpdateTimeout);
-    }
-    
-    // Clear canvases
-    this.ctx?.clearRect(0, 0, this.canvas.width, this.canvas.height);
-    if (this.vectorCanvas) {
-      const vctx = this.vectorCanvas.getContext('2d');
-      vctx?.clearRect(0, 0, this.vectorCanvas.width, this.vectorCanvas.height);
-    }
-    
-    // Nullify references for garbage collection
-    this.waypoints = null;
-    this.pathPoints = null;
-    this.selectedWaypoint = null;
-    this.waypointsById = null;
-    this.background = null;
-    this.elements = null;
-    
-    console.log('Route Plotter destroyed');
   }
 }
 
