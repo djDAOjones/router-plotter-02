@@ -11,14 +11,18 @@ export class AnimationState {
   
   /**
    * Reset animation to initial state
+   * Note: Preserves speed setting - only resets playback position
    */
   reset() {
+    // Preserve current speed if already set, otherwise use default
+    const preservedSpeed = this.speed || ANIMATION.DEFAULT_SPEED;
+    
     this.isPlaying = false;
     this.progress = 0;                    // 0 to 1
     this.currentTime = 0;                 // in milliseconds
     this.duration = ANIMATION.DEFAULT_DURATION;
     this.mode = 'constant-speed';         // or 'constant-time'
-    this.speed = ANIMATION.DEFAULT_SPEED; // pixels per second
+    this.speed = preservedSpeed;          // Preserve user's speed setting
     this.playbackSpeed = ANIMATION.DEFAULT_PLAYBACK_SPEED;
     
     // Pause states

@@ -1562,13 +1562,13 @@ class RoutePlotter {
         
         // Restore animation state to AnimationEngine
         this.animationEngine.setMode(savedState.mode || 'constant-speed');
-        this.animationEngine.setSpeed(savedState.speed || 200);
+        this.animationEngine.setSpeed(savedState.speed || ANIMATION.DEFAULT_SPEED);
         this.animationEngine.setDuration(savedState.duration || 5000);
         this.animationEngine.setPlaybackSpeed(savedState.playbackSpeed || 1);
         
         // Update UI to match loaded values
         if (this.elements.animationSpeed) {
-          this.elements.animationSpeed.value = savedState.speed || 200;
+          this.elements.animationSpeed.value = savedState.speed || ANIMATION.DEFAULT_SPEED;
           // Duration display will be updated after path calculation
         }
         
