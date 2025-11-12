@@ -846,21 +846,30 @@ class RoutePlotter {
   setupAnimationEngineListeners() {
     // Animation playback events - listen via EventBus
     this.eventBus.on('animation:play', () => {
-      this.elements.playPauseBtn.textContent = 'Pause';
+      // Toggle button visibility: hide Play, show Pause
+      this.elements.playBtn.style.display = 'none';
+      this.elements.pauseBtn.style.display = 'inline-block';
       this.announce('Playing animation');
     });
     
     this.eventBus.on('animation:pause', () => {
-      this.elements.playPauseBtn.textContent = 'Play';
+      // Toggle button visibility: show Play, hide Pause
+      this.elements.playBtn.style.display = 'inline-block';
+      this.elements.pauseBtn.style.display = 'none';
       this.announce('Animation paused');
     });
     
     this.eventBus.on('animation:complete', () => {
-      this.elements.playPauseBtn.textContent = 'Play';
+      // Show Play button when complete
+      this.elements.playBtn.style.display = 'inline-block';
+      this.elements.pauseBtn.style.display = 'none';
       this.announce('Animation complete');
     });
     
     this.eventBus.on('animation:reset', () => {
+      // Show Play button on reset
+      this.elements.playBtn.style.display = 'inline-block';
+      this.elements.pauseBtn.style.display = 'none';
       this.announce('Animation reset');
     });
     
