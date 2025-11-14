@@ -18,7 +18,7 @@ Thumbs.db
 *.sln
 *.sw?
 # Build outputs
-dist/
+# dist/ - NOT ignored (needed for GitHub Pages)
 build/
 
 # Environment files
