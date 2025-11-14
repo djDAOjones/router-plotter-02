@@ -32,20 +32,11 @@ export class PathCalculator {
       isMajor: wp.isMajor
     }));
     
-    // Debug logging for tension value
-    const tension = options.tension || PATH.DEFAULT_TENSION;
-    console.log('🔧 [PathCalculator] calculatePath called with:', {
-      waypointsCount: waypoints.length,
-      tension,
-      PATH_DEFAULT_TENSION: PATH.DEFAULT_TENSION,
-      options
-    });
-    
     // Generate initial path using Catmull-Rom splines
     const roughPath = CatmullRom.createPath(
       coords, 
       options.pointsPerSegment || PATH.POINTS_PER_SEGMENT,
-      tension
+      options.tension || PATH.DEFAULT_TENSION
     );
     
     // Apply corner-based velocity modulation for smoother animation
@@ -275,7 +266,6 @@ export class PathCalculator {
    */
   calculatePathLength(pathPoints) {
     if (!pathPoints || pathPoints.length === 0) {
-      console.warn('calculatePathLength called with empty path');
       return 0;
     }
     
@@ -284,17 +274,6 @@ export class PathCalculator {
     for (let i = 1; i < pathPoints.length; i++) {
       const p1 = pathPoints[i - 1];
       const p2 = pathPoints[i];
-      
-      // Check for NaN coordinates
-      if (isNaN(p1.x) || isNaN(p1.y) || isNaN(p2.x) || isNaN(p2.y)) {
-        console.error('❌ calculatePathLength found NaN coordinates:', {
-          index: i,
-          p1,
-          p2
-        });
-        continue; // Skip this segment
-      }
-      
       const dx = p2.x - p1.x;
       const dy = p2.y - p1.y;
       totalLength += Math.sqrt(dx * dx + dy * dy);

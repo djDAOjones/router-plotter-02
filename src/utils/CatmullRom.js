@@ -14,15 +14,6 @@ export class CatmullRom {
    * @returns {Object} Interpolated point {x, y}
    */
   static interpolate(p0, p1, p2, p3, t, tension) {
-    // Debug check for undefined tension
-    if (tension === undefined) {
-      console.error('❌ CatmullRom.interpolate called with undefined tension!', {
-        p0, p1, p2, p3, t, 
-        tension,
-        stack: new Error().stack
-      });
-      tension = 0.5; // Fallback to prevent NaN
-    }
     
     const t2 = t * t;
     const t3 = t2 * t;
@@ -53,15 +44,6 @@ export class CatmullRom {
   static createPath(waypoints, pointsPerSegment = 30, tension = 0.5) {
     if (waypoints.length < 2) return [];
     
-    // Debug log
-    console.log('🔧 [CatmullRom.createPath] Called with:', {
-      waypointsCount: waypoints.length,
-      pointsPerSegment,
-      tension,
-      firstWaypoint: waypoints[0],
-      lastWaypoint: waypoints[waypoints.length - 1]
-    });
-    
     const path = [];
     const lastIndex = waypoints.length - 1;
     const step = 1 / pointsPerSegment;
@@ -81,14 +63,6 @@ export class CatmullRom {
     
     // Add the final waypoint
     path.push(waypoints[lastIndex]);
-    
-    // Debug log result
-    console.log('🔧 [CatmullRom.createPath] Returning path with:', {
-      pathLength: path.length,
-      firstPoint: path[0],
-      lastPoint: path[path.length - 1],
-      hasNaN: path.some(p => isNaN(p.x) || isNaN(p.y))
-    });
     
     return path;
   }
