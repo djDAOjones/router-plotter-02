@@ -1,0 +1,290 @@
+{
+  "inputs": {
+    "src/utils/CatmullRom.js": {
+      "bytes": 2459,
+      "imports": [],
+      "format": "esm"
+    },
+    "src/utils/Easing.js": {
+      "bytes": 1205,
+      "imports": [],
+      "format": "esm"
+    },
+    "src/config/constants.js": {
+      "bytes": 3220,
+      "imports": [],
+      "format": "esm"
+    },
+    "src/services/StorageService.js": {
+      "bytes": 5817,
+      "imports": [
+        {
+          "path": "src/config/constants.js",
+          "kind": "import-statement",
+          "original": "../config/constants.js"
+        }
+      ],
+      "format": "esm"
+    },
+    "src/services/CoordinateTransform.js": {
+      "bytes": 7826,
+      "imports": [],
+      "format": "esm"
+    },
+    "src/services/PathCalculator.js": {
+      "bytes": 13622,
+      "imports": [
+        {
+          "path": "src/utils/CatmullRom.js",
+          "kind": "import-statement",
+          "original": "../utils/CatmullRom.js"
+        },
+        {
+          "path": "src/utils/Easing.js",
+          "kind": "import-statement",
+          "original": "../utils/Easing.js"
+        },
+        {
+          "path": "src/config/constants.js",
+          "kind": "import-statement",
+          "original": "../config/constants.js"
+        },
+        {
+          "path": "<runtime>",
+          "kind": "import-statement",
+          "external": true
+        }
+      ],
+      "format": "esm"
+    },
+    "src/services/PathCalculatorWithWorker.js": {
+      "bytes": 4671,
+      "imports": [
+        {
+          "path": "src/services/PathCalculator.js",
+          "kind": "import-statement",
+          "original": "./PathCalculator.js"
+        }
+      ],
+      "format": "esm"
+    },
+    "src/models/AnimationState.js": {
+      "bytes": 4753,
+      "imports": [
+        {
+          "path": "src/config/constants.js",
+          "kind": "import-statement",
+          "original": "../config/constants.js"
+        }
+      ],
+      "format": "esm"
+    },
+    "src/services/AnimationEngine.js": {
+      "bytes": 7657,
+      "imports": [
+        {
+          "path": "src/config/constants.js",
+          "kind": "import-statement",
+          "original": "../config/constants.js"
+        },
+        {
+          "path": "src/models/AnimationState.js",
+          "kind": "import-statement",
+          "original": "../models/AnimationState.js"
+        }
+      ],
+      "format": "esm"
+    },
+    "src/services/RenderingService.js": {
+      "bytes": 25539,
+      "imports": [
+        {
+          "path": "src/config/constants.js",
+          "kind": "import-statement",
+          "original": "../config/constants.js"
+        },
+        {
+          "path": "src/utils/Easing.js",
+          "kind": "import-statement",
+          "original": "../utils/Easing.js"
+        },
+        {
+          "path": "<runtime>",
+          "kind": "import-statement",
+          "external": true
+        }
+      ],
+      "format": "esm"
+    },
+    "src/core/EventBus.js": {
+      "bytes": 4428,
+      "imports": [],
+      "format": "esm"
+    },
+    "src/models/Waypoint.js": {
+      "bytes": 10719,
+      "imports": [
+        {
+          "path": "src/config/constants.js",
+          "kind": "import-statement",
+          "original": "../config/constants.js"
+        }
+      ],
+      "format": "esm"
+    },
+    "src/controllers/UIController.js": {
+      "bytes": 19505,
+      "imports": [
+        {
+          "path": "src/config/constants.js",
+          "kind": "import-statement",
+          "original": "../config/constants.js"
+        }
+      ],
+      "format": "esm"
+    },
+    "src/handlers/InteractionHandler.js": {
+      "bytes": 11938,
+      "imports": [
+        {
+          "path": "src/config/constants.js",
+          "kind": "import-statement",
+          "original": "../config/constants.js"
+        }
+      ],
+      "format": "esm"
+    },
+    "src/main.js": {
+      "bytes": 101888,
+      "imports": [
+        {
+          "path": "src/utils/CatmullRom.js",
+          "kind": "import-statement",
+          "original": "./utils/CatmullRom.js"
+        },
+        {
+          "path": "src/utils/Easing.js",
+          "kind": "import-statement",
+          "original": "./utils/Easing.js"
+        },
+        {
+          "path": "src/config/constants.js",
+          "kind": "import-statement",
+          "original": "./config/constants.js"
+        },
+        {
+          "path": "src/services/StorageService.js",
+          "kind": "import-statement",
+          "original": "./services/StorageService.js"
+        },
+        {
+          "path": "src/services/CoordinateTransform.js",
+          "kind": "import-statement",
+          "original": "./services/CoordinateTransform.js"
+        },
+        {
+          "path": "src/services/PathCalculatorWithWorker.js",
+          "kind": "import-statement",
+          "original": "./services/PathCalculatorWithWorker.js"
+        },
+        {
+          "path": "src/services/AnimationEngine.js",
+          "kind": "import-statement",
+          "original": "./services/AnimationEngine.js"
+        },
+        {
+          "path": "src/services/RenderingService.js",
+          "kind": "import-statement",
+          "original": "./services/RenderingService.js"
+        },
+        {
+          "path": "src/core/EventBus.js",
+          "kind": "import-statement",
+          "original": "./core/EventBus.js"
+        },
+        {
+          "path": "src/models/Waypoint.js",
+          "kind": "import-statement",
+          "original": "./models/Waypoint.js"
+        },
+        {
+          "path": "src/controllers/UIController.js",
+          "kind": "import-statement",
+          "original": "./controllers/UIController.js"
+        },
+        {
+          "path": "src/handlers/InteractionHandler.js",
+          "kind": "import-statement",
+          "original": "./handlers/InteractionHandler.js"
+        },
+        {
+          "path": "<runtime>",
+          "kind": "import-statement",
+          "external": true
+        }
+      ],
+      "format": "esm"
+    }
+  },
+  "outputs": {
+    "dist/app.js.map": {
+      "imports": [],
+      "exports": [],
+      "inputs": {},
+      "bytes": 326769
+    },
+    "dist/app.js": {
+      "imports": [],
+      "exports": [],
+      "entryPoint": "src/main.js",
+      "inputs": {
+        "src/utils/CatmullRom.js": {
+          "bytesInOutput": 460
+        },
+        "src/utils/Easing.js": {
+          "bytesInOutput": 149
+        },
+        "src/config/constants.js": {
+          "bytesInOutput": 1040
+        },
+        "src/services/StorageService.js": {
+          "bytesInOutput": 2163
+        },
+        "src/services/CoordinateTransform.js": {
+          "bytesInOutput": 2736
+        },
+        "src/services/PathCalculator.js": {
+          "bytesInOutput": 3872
+        },
+        "src/services/PathCalculatorWithWorker.js": {
+          "bytesInOutput": 2125
+        },
+        "src/models/AnimationState.js": {
+          "bytesInOutput": 1981
+        },
+        "src/services/AnimationEngine.js": {
+          "bytesInOutput": 2946
+        },
+        "src/services/RenderingService.js": {
+          "bytesInOutput": 8276
+        },
+        "src/core/EventBus.js": {
+          "bytesInOutput": 1006
+        },
+        "src/models/Waypoint.js": {
+          "bytesInOutput": 4593
+        },
+        "src/controllers/UIController.js": {
+          "bytesInOutput": 11848
+        },
+        "src/handlers/InteractionHandler.js": {
+          "bytesInOutput": 6110
+        },
+        "src/main.js": {
+          "bytesInOutput": 36697
+        }
+      },
+      "bytes": 86543
+    }
+  }
+}

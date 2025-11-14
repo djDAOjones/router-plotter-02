@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Route Plotter v3</title>
+  <link rel="stylesheet" href="styles/main.css">
+</head>
+<body>
+  <a class="skip-link" href="#main-content">Skip to main content</a>
+  <div id="announcer" class="sr-only" role="status" aria-live="polite" aria-atomic="true"></div>
+  <!-- Application Container -->
+  <div id="app">
+    <!-- Header -->
+    <header class="header" role="banner">
+      <h1 id="app-title" class="header-title">Route Plotter v3</h1>
+      <div class="header-controls">
+        <button id="help-btn" class="btn btn-secondary">Help</button>
+        <button id="clear-btn" class="btn btn-secondary">Clear</button>
+      </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="main" id="main-content" role="main" aria-labelledby="app-title">
+      <!-- Sidebar Controls -->
+      <aside class="sidebar" role="complementary" aria-label="Controls panel">
+        <!-- Tabs -->
+        <div class="sidebar-tabs">
+          <button class="tab-btn active" data-tab="waypoints">Waypoints</button>
+          <button class="tab-btn" data-tab="settings">Settings</button>
+        </div>
+        
+        <!-- Waypoints Tab -->
+        <div id="waypoints-tab" class="tab-content active">
+          <div class="control-group">
+            <h3>Waypoint List</h3>
+            <div id="waypoint-list" class="waypoint-list"></div>
+          </div>
+        </div>
+        
+        <!-- Settings Tab -->
+        <div id="settings-tab" class="tab-content">
+          <div class="control-group">
+            <h3>Motion</h3>
+            <label id="speed-control">
+              <span>Animation Speed</span>
+              <input type="range" id="animation-speed" min="10" max="800" step="5">
+              <span id="animation-speed-value">10s</span>
+            </label>
+          </div>
+
+          <!-- Path Head section moved to waypoint editor -->
+
+          <div class="control-group">
+            <h3>Background</h3>
+            <div style="display:flex; gap:0.5rem; align-items:center;">
+              <button id="bg-upload-btn" class="btn btn-secondary" aria-label="Upload background image">Upload Image</button>
+              <input id="bg-upload" type="file" accept="image/png,image/jpeg" style="display:none" />
+            </div>
+            <label>
+              <span>Overlay</span>
+              <input type="range" id="bg-overlay" min="-100" max="100" step="1" value="0" aria-label="Contrast overlay black to white">
+              <span id="bg-overlay-value">0</span>
+            </label>
+            <div style="display:flex; gap:0.5rem; align-items:center; margin-top:0.5rem;">
+              <span>Display:</span>
+              <button id="bg-fit-toggle" class="btn btn-secondary" data-mode="fit" aria-label="Toggle fit/fill mode">Fit</button>
+            </div>
+            <p class="sr-only" id="bg-drop-hint">Tip: Drag an image onto the canvas to set the background.</p>
+          </div>
+        </div>
+        
+      </aside>
+      
+      <!-- Canvas for drawing -->
+      <canvas id="canvas"></canvas>
+      
+      <!-- Right Sidebar - Waypoint Editor -->
+      <aside class="sidebar-right" role="complementary" aria-label="Waypoint editor">
+        <div id="waypoint-editor" style="display:none;">
+          <div class="control-group">
+            <h3>Waypoint Settings</h3>
+            
+            <!-- 1. Marker (formerly Dot) -->
+            <label>
+              <span>Marker</span>
+              <select id="marker-style">
+                <option value="dot">Dot</option>
+                <option value="square">Square</option>
+                <option value="flag">Flag</option>
+                <option value="none">None</option>
+              </select>
+            </label>
+            <label>
+              <span>Marker Color</span>
+              <input type="color" id="dot-color" value="#FF6B6B">
+            </label>
+            <label>
+              <span>Marker Size</span>
+              <input type="range" id="dot-size" min="4" max="16" value="8" step="1" aria-label="Marker size">
+              <span id="dot-size-value">8</span>
+            </label>
+            
+            <!-- Beacon Effect -->
+            <label>
+              <span>Beacon</span>
+              <select id="editor-beacon-style">
+                <option value="none">None</option>
+                <option value="pulse">Pulse</option>
+                <option value="ripple">Ripple</option>
+              </select>
+            </label>
+            <label>
+              <span>Beacon Color</span>
+              <input type="color" id="editor-beacon-color" value="#FF6B6B">
+            </label>
+            
+            <!-- Path Head -->
+            <label>
+              <span>Path Head</span>
+              <select id="path-head-style">
+                <option value="arrow">Arrow</option>
+                <option value="dot">Dot</option>
+                <option value="custom">Custom Image</option>
+                <option value="none">None</option>
+              </select>
+            </label>
+            <label>
+              <span>Path Head Color</span>
+              <input type="color" id="path-head-color" value="#111111">
+            </label>
+            <label>
+              <span>Path Head Size</span>
+              <input type="range" id="path-head-size" min="4" max="24" value="8" step="1">
+              <span id="path-head-size-value">8</span>
+            </label>
+            <div id="custom-head-controls" style="display:none;">
+              <div style="display:flex; gap:0.5rem; align-items:center; margin-top:0.5rem;">
+                <button id="head-upload-btn" class="btn btn-secondary" aria-label="Upload custom path head image">Upload Image</button>
+                <input id="head-upload" type="file" accept="image/png,image/jpeg,image/svg+xml" style="display:none" />
+              </div>
+              <div id="head-preview" style="margin-top:0.5rem; padding:0.5rem; border:1px solid #ccc; display:none; text-align:center;">
+                <p id="head-filename">No image selected</p>
+                <img id="head-preview-img" style="max-width:100%; max-height:100px; margin:0.5rem 0;" alt="Custom path head preview">
+              </div>
+            </div>
+            
+            <!-- Path Properties -->
+            <label>
+              <span>Path Color</span>
+              <input type="color" id="segment-color" value="#FF6B6B">
+            </label>
+            <label>
+              <span>Path Thickness</span>
+              <input type="range" id="segment-width" min="1" max="10" value="3" step="0.5">
+              <span id="segment-width-value">3</span>
+            </label>
+            <label>
+              <span>Path Shape</span>
+              <select id="path-shape">
+                <option value="line">Line</option>
+                <option value="squiggle">Squiggle</option>
+                <option value="randomised">Randomised</option>
+              </select>
+            </label>
+            <label>
+              <span>Path Style</span>
+              <select id="segment-style">
+                <option value="solid">Solid</option>
+                <option value="dotted">Dotted</option>
+                <option value="dashed">Dashed</option>
+              </select>
+            </label>
+            
+            <!-- Label -->
+            <label>
+              <span>Label Text</span>
+              <input type="text" id="waypoint-label" placeholder="Enter label text...">
+            </label>
+            <label>
+              <span>Label Onset</span>
+              <select id="label-mode">
+                <option value="none">Off</option>
+                <option value="on">On</option>
+                <option value="fade">Show and Fade</option>
+                <option value="persist">Show and Persist</option>
+              </select>
+            </label>
+            <label>
+              <span>Label Position</span>
+              <select id="label-position">
+                <option value="auto">Auto</option>
+                <option value="top">Top</option>
+                <option value="right">Right</option>
+                <option value="bottom">Bottom</option>
+                <option value="left">Left</option>
+              </select>
+            </label>
+            
+            <!-- Wait Time -->
+            <label id="pause-time-control">
+              <span>Wait Time</span>
+              <input type="range" id="waypoint-pause-time" min="0" max="5" value="1.5" step="0.5">
+              <span id="waypoint-pause-time-value">1.5s</span>
+            </label>
+          </div>
+        </div>
+        <div id="waypoint-editor-placeholder" style="display: flex; align-items: center; justify-content: center; height: 100%; color: #999; text-align: center; padding: 2rem;">
+          <p>Select a waypoint to edit its properties</p>
+        </div>
+      </aside>
+      
+      <!-- Controls Panel -->
+      <div class="controls">
+        <div class="transport-controls">
+          <button id="skip-start-btn" class="btn btn-icon" title="Skip to Start">⏮</button>
+          <button id="play-btn" class="btn btn-icon btn-primary" title="Play">▶</button>
+          <button id="pause-btn" class="btn btn-icon btn-primary" style="display:none" title="Pause">⏸</button>
+          <button id="skip-end-btn" class="btn btn-icon" title="Skip to End">⏭</button>
+        </div>
+        
+        <div class="timeline">
+          <span id="current-time" class="time">0:00</span>
+          <input type="range" id="timeline-slider" class="timeline-slider" min="0" max="1000" value="0" step="1" aria-label="Timeline position">
+          <span id="total-time" class="time">0:00</span>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- Splash Screen (Hidden by default) -->
+  <div id="splash" class="splash-screen" style="display: none;">
+    <div class="splash-content">
+      <h2>Welcome to Route Plotter v3</h2>
+      
+      <div class="instructions">
+        <h3>🖱️ Creating Waypoints</h3>
+        <ul>
+          <li><strong>Click</strong> to add a <strong>major waypoint</strong> (visible marker)</li>
+          <li><strong>Shift+Click</strong> to add a <strong>minor waypoint</strong> (invisible, for path shaping)</li>
+          <li>Need at least 2 waypoints to create a path</li>
+        </ul>
+
+        <h3>▶️ Animation Controls</h3>
+        <ul>
+          <li>Use the play button or spacebar to play/pause</li>
+          <li>Drag the timeline slider to scrub through animation</li>
+        </ul>
+      </div>
+
+      <button id="splash-close" class="btn btn-primary">Get Started</button>
+      
+      <label class="checkbox-label">
+        <input type="checkbox" id="splash-dont-show">
+        Don't show this again
+      </label>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
