@@ -4,8 +4,8 @@
 
 // Animation timing and performance
 export const ANIMATION = {
-  DEFAULT_DURATION: 5000,        // 5 seconds
-  DEFAULT_SPEED: 50,             // pixels per second (default animation speed)
+  DEFAULT_DURATION: 10000,       // 10 seconds (default duration)
+  DEFAULT_SPEED: 400,            // pixels per second (default animation speed - reasonable starting speed)
   TARGET_FPS: 60,
   FRAME_INTERVAL: 1000 / 60,     // ~16.67ms per frame
   MAX_DELTA_TIME: 100,           // Maximum time jump to prevent huge leaps

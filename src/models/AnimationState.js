@@ -17,6 +17,8 @@ export class AnimationState {
     // Preserve current speed if already set, otherwise use default
     const preservedSpeed = this.speed || ANIMATION.DEFAULT_SPEED;
     
+    console.log('🔄 [AnimationState.reset()] BEFORE - speed:', this.speed, 'preservedSpeed:', preservedSpeed);
+    
     this.isPlaying = false;
     this.progress = 0;                    // 0 to 1
     this.currentTime = 0;                 // in milliseconds
@@ -24,6 +26,8 @@ export class AnimationState {
     this.mode = 'constant-speed';         // or 'constant-time'
     this.speed = preservedSpeed;          // Preserve user's speed setting
     this.playbackSpeed = ANIMATION.DEFAULT_PLAYBACK_SPEED;
+    
+    console.log('✅ [AnimationState.reset()] AFTER - speed:', this.speed, 'duration:', this.duration);
     
     // Pause states
     this.isPaused = false;                // User-triggered pause

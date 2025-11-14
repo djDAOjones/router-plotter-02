@@ -194,13 +194,13 @@ export class InteractionHandler {
     // Animation controls
     if (key === ' ') {
       event.preventDefault();
-      this.eventBus.emit('animation:toggle');
+      this.eventBus.emit('ui:animation:toggle');
     } else if (key === 'arrowleft' && !shift) {
       event.preventDefault();
-      this.eventBus.emit('animation:skip-start');
+      this.eventBus.emit('ui:animation:skip-start');
     } else if (key === 'arrowright' && !shift) {
       event.preventDefault();
-      this.eventBus.emit('animation:skip-end');
+      this.eventBus.emit('ui:animation:skip-end');
     }
     
     // Playback speed controls (J/K/L keys)

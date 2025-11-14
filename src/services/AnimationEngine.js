@@ -168,18 +168,24 @@ export class AnimationEngine {
    */
   setDuration(duration) {
     const currentProgress = this.state.progress;
+    console.log('⏱️  [AnimationEngine.setDuration()] duration:', duration, 'ms (', (duration/1000).toFixed(1), 's), progress:', currentProgress);
     this.state.duration = duration;
     this.state.setProgress(currentProgress); // Maintain progress
     this.emit('durationChange', duration);
   }
   
   /**
-   * Set animation speed (for constant-speed mode)
+   * Set animation speed in pixels per second (for constant-speed mode)
+   * Rounds to nearest step value (5) to match slider constraints
    * @param {number} speed - Speed in pixels per second
    */
   setSpeed(speed) {
-    this.state.speed = speed;
-    this.emit('speedChange', speed);
+    // Round to nearest step value (5) to match slider
+    const step = 5;
+    const roundedSpeed = Math.round(speed / step) * step;
+    console.log('🏃 [AnimationEngine.setSpeed()] speed:', roundedSpeed, 'px/s (was:', this.state.speed, ', raw:', speed, ')');
+    this.state.speed = roundedSpeed;
+    this.emit('speedChange', roundedSpeed);
   }
   
   /**

@@ -186,9 +186,12 @@ class RoutePlotter {
     this.elements.customHeadControls.style.display = 
       this.styles.pathHead.style === 'custom' ? 'block' : 'none';
     
-    // Initialize animation speed to show time
+    // Initialize animation speed display
     const defaultDuration = this.animationEngine.state.duration / 1000;
     this.elements.animationSpeedValue.textContent = defaultDuration + 's';
+    // Slider value will be set via event after UIController is initialized
+    
+    // Slider is now properly synchronized after resets
     
     // Set up event listeners
     this.setupEventListeners();
@@ -199,6 +202,12 @@ class RoutePlotter {
     // Initialize UI Controller and Interaction Handler
     this.uiController = new UIController(this.elements, this.eventBus);
     this.interactionHandler = new InteractionHandler(this.canvas, this.eventBus);
+    
+    // Now that UIController is ready, set the initial slider value
+    const defaultSpeed = this.animationEngine.state.speed || ANIMATION.DEFAULT_SPEED;
+    const timestamp = performance.now().toFixed(2);
+    console.log(`🚀 [${timestamp}ms] [init] Setting initial slider speed:`, defaultSpeed);
+    this.eventBus.emit('ui:slider:update-speed', defaultSpeed);
     
     // Set up controller event connections
     this.setupControllerEventConnections();
@@ -490,36 +499,12 @@ class RoutePlotter {
       }
     });
     
-    // Splash screen
+    // Splash screen - close on any click
     this.elements.splashClose.addEventListener('click', () => this.hideSplash());
-    this.elements.splash.addEventListener('click', (e) => {
-      if (e.target === this.elements.splash) {
-        this.hideSplash();
-      }
-    });
+    this.elements.splash.addEventListener('click', () => this.hideSplash());
     
     // Always use constant-speed mode now (animation mode dropdown removed)
-    
-    // Animation speed/duration controls - always use constant speed
-    this.elements.animationSpeed.addEventListener('input', (e) => {
-      const speed = parseInt(e.target.value);
-      this.animationEngine.setSpeed(speed);
-      
-      // Calculate and display total duration
-      if (this.pathPoints && this.pathPoints.length > 0) {
-        const totalLength = this.pathCalculator.calculatePathLength(this.pathPoints);
-        const totalDuration = (totalLength / speed) * 1000;
-        this.animationEngine.setDuration(totalDuration);
-        
-        const durationSec = Math.round(totalDuration / 100) / 10; // Round to 1 decimal place
-        this.elements.animationSpeedValue.textContent = durationSec + 's';
-      } else {
-        this.elements.animationSpeedValue.textContent = '5s';
-      }
-      
-      this.updateTimeDisplay();
-      this.autoSave(); // Save speed changes
-    });
+    // Animation speed now handled by UIController -> EventBus -> animation:speed-change event
     
     // Waypoint pause time (in waypoint editor)
     this.elements.waypointPauseTime.addEventListener('input', (e) => {
@@ -889,10 +874,30 @@ class RoutePlotter {
     });
     
     this.eventBus.on('animation:reset', () => {
-      // Show Play button on reset
+      const timestamp = performance.now().toFixed(2);
+      // Show Play button when reset
       this.elements.playBtn.style.display = 'inline-block';
       this.elements.pauseBtn.style.display = 'none';
       this.announce('Animation reset');
+      
+      // CRITICAL FIX: Update slider to match preserved speed after reset
+      const preservedSpeed = this.animationEngine.state.speed;
+      console.log(`🔧 [${timestamp}ms] [animation:reset] Syncing slider to preserved speed:`, preservedSpeed);
+      console.trace('Reset origin');
+      
+      // CRITICAL FIX #2: Recalculate duration based on preserved speed and path length
+      if (this.pathPoints && this.pathPoints.length > 0) {
+        const totalLength = this.pathCalculator.calculatePathLength(this.pathPoints);
+        const totalDuration = (totalLength / preservedSpeed) * 1000;
+        console.log(`📏 [${timestamp}ms] [animation:reset] Recalculating duration - length:`, totalLength.toFixed(1), 'speed:', preservedSpeed, 'duration:', (totalDuration/1000).toFixed(1) + 's');
+        this.animationEngine.setDuration(totalDuration);
+        
+        const durationSec = Math.round(totalDuration / 100) / 10; // Round to 1 decimal
+        this.elements.animationSpeedValue.textContent = durationSec + 's';
+      }
+      
+      // Use event to avoid feedback loop
+      this.eventBus.emit('ui:slider:update-speed', preservedSpeed);
     });
     
     // Waypoint wait events
@@ -933,20 +938,53 @@ class RoutePlotter {
       this.autoSave();
     });
     
-    // Animation events from UIController
-    this.eventBus.on('animation:play', () => {
+    // Animation control events from UIController
+    // NOTE: These are command events from UI, NOT the state events emitted by AnimationEngine
+    // AnimationEngine emits 'play', 'pause', etc. internally - we listen to those in setupAnimationEngineListeners()
+    // These listeners are for UI button clicks, keyboard shortcuts, etc.
+    this.eventBus.on('ui:animation:play', () => {
+      console.log('▶️  [UI Event] ui:animation:play - progress:', this.animationEngine.getProgress());
       // If animation is at 100%, restart from beginning
       if (this.animationEngine.getProgress() >= 1.0) {
+        console.log('🔄 [UI Event] Progress at 100%, calling reset()');
         this.animationEngine.reset();
       }
       this.animationEngine.play();
     });
-    this.eventBus.on('animation:pause', () => this.animationEngine.pause());
-    this.eventBus.on('animation:skip-start', () => this.animationEngine.reset());
-    this.eventBus.on('animation:skip-end', () => this.animationEngine.seekToProgress(1.0));
-    this.eventBus.on('animation:seek', (progress) => this.animationEngine.seekToProgress(progress));
-    this.eventBus.on('animation:speed-change', (speed) => this.animationEngine.setSpeed(speed));
-    this.eventBus.on('animation:toggle', () => {
+    this.eventBus.on('ui:animation:pause', () => this.animationEngine.pause());
+    this.eventBus.on('ui:animation:skip-start', () => {
+      console.log('⏪ [UI Event] ui:animation:skip-start - calling reset()');
+      this.animationEngine.reset();
+    });
+    this.eventBus.on('ui:animation:skip-end', () => this.animationEngine.seekToProgress(1.0));
+    this.eventBus.on('ui:animation:seek', (progress) => this.animationEngine.seekToProgress(progress));
+    this.eventBus.on('animation:speed-change', (speed) => {
+      const timestamp = performance.now().toFixed(2);
+      console.log(`🎯 [${timestamp}ms] [Event] animation:speed-change - new speed:`, speed, 'px/s');
+      console.trace('Speed change origin');
+      
+      this.animationEngine.setSpeed(speed);
+      
+      // Calculate and display total duration based on path length
+      if (this.pathPoints && this.pathPoints.length > 0) {
+        const totalLength = this.pathCalculator.calculatePathLength(this.pathPoints);
+        const totalDuration = (totalLength / speed) * 1000;
+        console.log('📏 [Event] Recalculating duration - length:', totalLength.toFixed(1), 'speed:', speed, 'duration:', (totalDuration/1000).toFixed(1) + 's');
+        this.animationEngine.setDuration(totalDuration);
+        
+        const durationSec = Math.round(totalDuration / 100) / 10; // Round to 1 decimal
+        this.elements.animationSpeedValue.textContent = durationSec + 's';
+      } else {
+        // No path yet, show estimate
+        const estimatedDuration = 10000 / speed * this.animationEngine.state.speed;
+        const durationSec = Math.round(estimatedDuration / 100) / 10;
+        this.elements.animationSpeedValue.textContent = durationSec + 's';
+      }
+      
+      this.updateTimeDisplay();
+      this.autoSave();
+    });
+    this.eventBus.on('ui:animation:toggle', () => {
       if (this.animationEngine.state.isPlaying) {
         this.animationEngine.pause();
       } else {
@@ -1448,8 +1486,16 @@ class RoutePlotter {
       // Calculate duration based on animation mode
       if (this.animationEngine.state.mode === 'constant-speed') {
         const totalLength = this.pathCalculator.calculatePathLength(this.pathPoints);
-        const totalDuration = (totalLength / this.animationEngine.state.speed) * 1000; // Convert to ms
+        const currentSpeed = this.animationEngine.state.speed;
+        const totalDuration = (totalLength / currentSpeed) * 1000; // Convert to ms
+        
+        console.log('🛤️  [calculatePath] Updating duration - speed:', currentSpeed, 'px/s, length:', totalLength.toFixed(1), 'px, duration:', (totalDuration/1000).toFixed(1) + 's');
+        
         this.animationEngine.setDuration(totalDuration);
+        
+        // Update duration display immediately to show correct time
+        const durationSec = Math.round(totalDuration / 100) / 10;
+        this.elements.animationSpeedValue.textContent = durationSec + 's';
       }
       // For constant-time mode, duration is already set by the slider
       
@@ -1738,11 +1784,12 @@ class RoutePlotter {
       // Use StorageService with debounced auto-save
       this.storageService.autoSave(data);
     } catch (e) {
-      console.error('Auto-save failed', e);
+      console.error('Error saving state:', e);
     }
   }
-
+  
   loadAutosave() {
+    console.log('📥 [loadAutosave] Loading saved state...');
     try {
       const data = this.storageService.loadAutoSave();
       if (!data) return;
@@ -1797,7 +1844,10 @@ class RoutePlotter {
         
         // Update UI to match loaded values
         if (this.elements.animationSpeed) {
-          this.elements.animationSpeed.value = savedState.speed || ANIMATION.DEFAULT_SPEED;
+          const loadedSpeed = savedState.speed || ANIMATION.DEFAULT_SPEED;
+          console.log('🎯 [loadAutosave] Setting slider to:', loadedSpeed, '(from savedState.speed:', savedState.speed, ')');
+          // Use event to avoid feedback loop
+          this.eventBus.emit('ui:slider:update-speed', loadedSpeed);
           // Duration display will be updated after path calculation
         }
         

@@ -23,6 +23,7 @@ export class UIController {
    * Set up all UI event listeners
    */
   setupEventListeners() {
+    console.log('🔧 [UIController] Setting up event listeners at:', performance.now().toFixed(2), 'ms');
     // Tab switching
     this.elements.tabBtns?.forEach(btn => {
       btn.addEventListener('click', (e) => this.handleTabSwitch(e));
@@ -56,31 +57,91 @@ export class UIController {
     
     // Animation controls
     this.elements.playBtn?.addEventListener('click', () => {
-      this.eventBus.emit('animation:play');
+      this.eventBus.emit('ui:animation:play');
     });
     
     this.elements.pauseBtn?.addEventListener('click', () => {
-      this.eventBus.emit('animation:pause');
+      this.eventBus.emit('ui:animation:pause');
     });
     
     this.elements.skipStartBtn?.addEventListener('click', () => {
-      this.eventBus.emit('animation:skip-start');
+      this.eventBus.emit('ui:animation:skip-start');
     });
     
     this.elements.skipEndBtn?.addEventListener('click', () => {
-      this.eventBus.emit('animation:skip-end');
+      this.eventBus.emit('ui:animation:skip-end');
     });
     
     this.elements.timelineSlider?.addEventListener('input', (e) => {
       const progress = e.target.value / ANIMATION.TIMELINE_RESOLUTION;
-      this.eventBus.emit('animation:seek', progress);
+      this.eventBus.emit('ui:animation:seek', progress);
     });
     
+    /**
+     * Animation speed slider with feedback loop prevention
+     * Uses multiple checks to distinguish between user input and programmatic updates
+     * to avoid circular event chains when slider value is set by code
+     */
+    let isUpdatingSlider = false;
+    
     this.elements.animationSpeed?.addEventListener('input', (e) => {
-      const speed = parseFloat(e.target.value);
-      const seconds = (1000 / speed).toFixed(1);
-      this.elements.animationSpeedValue.textContent = `${seconds}s`;
+      const currentValue = parseInt(e.target.value);
+      const timestamp = performance.now().toFixed(2);
+      
+      // Comprehensive event logging
+      console.log(`
+📡 [${timestamp}ms] SLIDER INPUT EVENT:`, {
+        value: currentValue,
+        isTrusted: e.isTrusted,
+        isUpdating: isUpdatingSlider,
+        hasFocus: document.activeElement === e.target,
+        eventType: e.type,
+        target: e.target.id
+      });
+      
+      // Check if this is a programmatic change
+      if (isUpdatingSlider) {
+        console.log('🛡️ [UIController] Blocked programmatic input event, value:', currentValue);
+        console.trace('Blocked event stack trace');
+        return;
+      }
+      
+      const speed = currentValue;
+      console.log('🎚️ [UIController] User moved slider to:', speed);
+      console.trace('User input stack trace');
       this.eventBus.emit('animation:speed-change', speed);
+    });
+    
+    /**
+     * Listen for programmatic slider updates from other parts of the app
+     * Temporarily sets flag to prevent the input event from firing
+     * Rounds speed to nearest step value (5) to prevent snap-back
+     * @param {number} speed - The speed value to set on the slider
+     */
+    this.eventBus.on('ui:slider:update-speed', (speed) => {
+      const timestamp = performance.now().toFixed(2);
+      // Round to nearest step value (5) to prevent slider snap-back
+      const step = 5;
+      const roundedSpeed = Math.round(speed / step) * step;
+      console.log(`
+💵 [${timestamp}ms] PROGRAMMATIC UPDATE:`, {
+        requested: speed,
+        rounded: roundedSpeed,
+        currentSliderValue: this.elements.animationSpeed.value
+      });
+      console.trace('Update origin');
+      
+      // Set protection and update slider
+      isUpdatingSlider = true;
+      this.elements.animationSpeed.value = roundedSpeed;
+      console.log(`✅ [${performance.now().toFixed(2)}ms] Protection ENABLED`);
+      
+      // Clear protection after brief delay to ensure queued events are blocked
+      setTimeout(() => { 
+        const t = performance.now().toFixed(2);
+        console.log(`✅ [${t}ms] Re-enabling slider input detection`);
+        isUpdatingSlider = false;
+      }, 50);
     });
     
     // Clear button

@@ -158,7 +158,9 @@ export class RenderingService {
   renderPath(ctx, pathPoints, waypoints, styles, animationEngine) {
     const totalPoints = pathPoints.length;
     const progress = animationEngine.getProgress();
-    const pointsToRender = Math.floor(totalPoints * progress);
+    const exactPosition = totalPoints * progress;
+    const pointsToRender = Math.floor(exactPosition);
+    const fraction = exactPosition - pointsToRender; // Fractional part for partial segment
     const segments = waypoints.length - 1;
     const pointsPerSegment = Math.floor(totalPoints / segments);
     const controllerForSegment = new Array(segments);
@@ -237,6 +239,67 @@ export class RenderingService {
       
       ctx.stroke();
     }
+    
+    // Draw partial final segment for smooth animation (sub-pixel interpolation)
+    // Use tiny threshold (0.001%) to avoid degenerate cases while maintaining perfect smoothness
+    if (pointsToRender > 0 && pointsToRender < totalPoints && fraction > 0.00001) {
+      if (Math.random() < 0.01) { // Log 1% of the time to avoid spam
+        console.log('[RenderPath] Drawing partial segment - fraction:', fraction.toFixed(5), 'at point:', pointsToRender);
+      }
+      const i = pointsToRender;
+      const segmentIndex = Math.min(Math.floor(i / pointsPerSegment), segments - 1);
+      const controllerIdx = controllerForSegment[segmentIndex];
+      const controller = controllerIdx >= 0 ? waypoints[controllerIdx] : {
+        segmentColor: styles.pathColor,
+        segmentWidth: styles.pathThickness,
+        segmentStyle: 'solid',
+        pathShape: 'line'
+      };
+      
+      ctx.strokeStyle = controller.segmentColor;
+      ctx.lineWidth = controller.segmentWidth;
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      this.applyLineStyle(ctx, controller.segmentStyle);
+      ctx.beginPath();
+      
+      const p1 = pathPoints[i - 1];
+      const p2 = pathPoints[i];
+      
+      // Interpolate end point for smooth partial segment
+      const partialEnd = {
+        x: p1.x + (p2.x - p1.x) * fraction,
+        y: p1.y + (p2.y - p1.y) * fraction
+      };
+      
+      const pathShape = controller.pathShape || 'line';
+      
+      if (pathShape === 'squiggle') {
+        const midX = (p1.x + partialEnd.x) / 2;
+        const midY = (p1.y + partialEnd.y) / 2;
+        const perpX = -(partialEnd.y - p1.y) * 0.15;
+        const perpY = (partialEnd.x - p1.x) * 0.15;
+        
+        ctx.moveTo(p1.x, p1.y);
+        const wave = Math.sin(i * 0.5) * 0.5;
+        ctx.quadraticCurveTo(
+          midX + perpX * wave,
+          midY + perpY * wave,
+          partialEnd.x, partialEnd.y
+        );
+      } else if (pathShape === 'randomised') {
+        // For randomised, use simple line to avoid flickering
+        ctx.moveTo(p1.x, p1.y);
+        ctx.lineTo(partialEnd.x, partialEnd.y);
+      } else {
+        // Default line with interpolated end point
+        ctx.moveTo(p1.x, p1.y);
+        ctx.lineTo(partialEnd.x, partialEnd.y);
+      }
+      
+      ctx.stroke();
+    }
+    
     ctx.setLineDash([]);
   }
   
@@ -246,24 +309,42 @@ export class RenderingService {
   renderPathHead(ctx, pathPoints, styles, animationEngine) {
     const progress = animationEngine.getProgress();
     const totalPoints = pathPoints.length;
-    const pointsToRender = Math.floor(totalPoints * progress);
+    const exactPosition = totalPoints * progress;
+    const pointsToRender = Math.floor(exactPosition);
     
-    if (pointsToRender > 1) {
-      // Get the path head position
-      const headIndex = Math.min(pointsToRender - 1, pathPoints.length - 1);
-      const head = pathPoints[headIndex];
+    if (pointsToRender > 1 && pointsToRender < totalPoints) {
+      // Interpolate between current and next point for smooth movement
+      const currentIndex = Math.min(pointsToRender - 1, pathPoints.length - 2);
+      const nextIndex = currentIndex + 1;
+      const fraction = exactPosition - pointsToRender; // Fractional part (0-1)
       
-      // Calculate direction for rotation (based on previous point)
+      const currentPoint = pathPoints[currentIndex];
+      const nextPoint = pathPoints[nextIndex];
+      
+      // Linear interpolation between points for smooth sub-pixel movement
+      const head = {
+        x: currentPoint.x + (nextPoint.x - currentPoint.x) * fraction,
+        y: currentPoint.y + (nextPoint.y - currentPoint.y) * fraction
+      };
+      
+      // Calculate direction for rotation (use interpolated position)
       let rotation = 0;
-      if (headIndex > 0) {
-        const prevPoint = pathPoints[headIndex - 1];
-        rotation = Math.atan2(head.y - prevPoint.y, head.x - prevPoint.x);
+      if (currentIndex > 0) {
+        const prevPoint = pathPoints[currentIndex - 1];
+        rotation = Math.atan2(nextPoint.y - prevPoint.y, nextPoint.x - prevPoint.x);
       }
       
       // Store calculated rotation
       styles.pathHead.rotation = rotation;
       
-      // Draw path head based on style
+      // Draw path head based on style with interpolated position
+      this.drawPathHead(ctx, head.x, head.y, rotation, styles.pathHead);
+    } else if (pointsToRender >= totalPoints && totalPoints > 0) {
+      // At end of animation, use final point
+      const head = pathPoints[totalPoints - 1];
+      const prevPoint = totalPoints > 1 ? pathPoints[totalPoints - 2] : head;
+      const rotation = Math.atan2(head.y - prevPoint.y, head.x - prevPoint.x);
+      styles.pathHead.rotation = rotation;
       this.drawPathHead(ctx, head.x, head.y, rotation, styles.pathHead);
     }
   }
