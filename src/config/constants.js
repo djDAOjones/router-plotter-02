@@ -40,7 +40,7 @@ export const RENDERING = {
 // Path calculation parameters
 export const PATH = {
   POINTS_PER_SEGMENT: 100,        // Catmull-Rom interpolation density
-  DEFAULT_TENSION: 0.2,           // Catmull-Rom tension - lower = tighter curves; higher = looser curves
+  DEFAULT_TENSION: 0.1,           // Catmull-Rom tension - lower = tighter curves; higher = looser curves
   TARGET_SPACING: 2,              // Pixels between points after reparameterization
   MAX_CURVATURE: 0.1,             // Threshold for maximum corner slowing
   MIN_CORNER_SPEED: 0.2,          // Minimum 20% speed at tight corners (was 40% - now slows more)

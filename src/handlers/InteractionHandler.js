@@ -282,8 +282,8 @@ export class InteractionHandler {
       this.eventBus.emit('file:save');
     }
     
-    // Help (?)
-    else if (key === '?' || key === 'h') {
+    // Help (? or H, but not Cmd+H or Ctrl+H)
+    else if ((key === '?' || key === 'h') && !ctrl) {
       event.preventDefault();
       this.eventBus.emit('help:toggle');
     }
