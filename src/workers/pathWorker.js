@@ -7,6 +7,12 @@
 import { CatmullRom } from '../utils/CatmullRom.js';
 import { PATH } from '../config/constants.js';
 
+// Debug: Verify PATH.DEFAULT_TENSION is defined
+console.log('🔧 [Worker Init] PATH.DEFAULT_TENSION:', PATH.DEFAULT_TENSION);
+if (PATH.DEFAULT_TENSION === undefined) {
+  console.error('❌ [Worker] PATH.DEFAULT_TENSION is undefined!');
+}
+
 /**
  * Calculate path through waypoints
  */
@@ -32,8 +38,18 @@ function calculatePath(waypoints) {
       // Skip the first point of segments after the first to avoid duplicates
       if (i > 0 && t === 0) continue;
       
-      // Use Catmull-Rom interpolation
-      const point = CatmullRom.interpolate(p0, p1, p2, p3, normalizedT);
+      // Use Catmull-Rom interpolation with configured tension
+      if (i === 0 && t === 0) {
+        console.log('🔧 [Worker] First interpolation call:', {
+          p0, p1, p2, p3,
+          normalizedT,
+          tension: PATH.DEFAULT_TENSION
+        });
+      }
+      const point = CatmullRom.interpolate(p0, p1, p2, p3, normalizedT, PATH.DEFAULT_TENSION);
+      if (i === 0 && t === 0) {
+        console.log('🔧 [Worker] First point result:', point);
+      }
       
       // Add waypoint reference for later use
       point.segmentIndex = i;

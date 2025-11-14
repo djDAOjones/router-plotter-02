@@ -1,30 +1,31 @@
 /**
  * Catmull-Rom Spline Implementation
  * Provides smooth curve interpolation through a set of waypoints
- * Optimized for performance with global tension control
  */
 export class CatmullRom {
   /**
-   * Global tension value for all curve segments
-   * 0.5 = standard Catmull-Rom, higher values create tighter curves
-   * @constant {number}
-   */
-  static TENSION = 0.8;
-  
-  /**
    * Interpolates a point on a Catmull-Rom spline between p1 and p2
-   * Uses the global TENSION value for consistent curve behavior
    * @param {Object} p0 - Previous control point {x, y}
    * @param {Object} p1 - Start point of segment {x, y}
    * @param {Object} p2 - End point of segment {x, y}
    * @param {Object} p3 - Next control point {x, y}
    * @param {number} t - Interpolation parameter (0 to 1)
+   * @param {number} tension - Tension value (lower = tighter curves, higher = looser curves)
    * @returns {Object} Interpolated point {x, y}
    */
-  static interpolate(p0, p1, p2, p3, t) {
+  static interpolate(p0, p1, p2, p3, t, tension) {
+    // Debug check for undefined tension
+    if (tension === undefined) {
+      console.error('❌ CatmullRom.interpolate called with undefined tension!', {
+        p0, p1, p2, p3, t, 
+        tension,
+        stack: new Error().stack
+      });
+      tension = 0.5; // Fallback to prevent NaN
+    }
+    
     const t2 = t * t;
     const t3 = t2 * t;
-    const tension = CatmullRom.TENSION;
     
     // Pre-calculate tangent vectors
     const v0x = (p2.x - p0.x) * tension;
@@ -44,13 +45,22 @@ export class CatmullRom {
   
   /**
    * Creates a smooth path through waypoints using Catmull-Rom splines
-   * Uses global TENSION value for all segments (optimized for performance)
    * @param {Array} waypoints - Array of waypoint objects with x and y properties
    * @param {number} pointsPerSegment - Number of points to generate per segment (default: 30)
+   * @param {number} tension - Tension value (lower = tighter curves, higher = looser curves)
    * @returns {Array} Array of interpolated points forming the path
    */
-  static createPath(waypoints, pointsPerSegment = 30) {
+  static createPath(waypoints, pointsPerSegment = 30, tension = 0.5) {
     if (waypoints.length < 2) return [];
+    
+    // Debug log
+    console.log('🔧 [CatmullRom.createPath] Called with:', {
+      waypointsCount: waypoints.length,
+      pointsPerSegment,
+      tension,
+      firstWaypoint: waypoints[0],
+      lastWaypoint: waypoints[waypoints.length - 1]
+    });
     
     const path = [];
     const lastIndex = waypoints.length - 1;
@@ -65,12 +75,20 @@ export class CatmullRom {
       
       // Generate points for this segment
       for (let j = 0; j < pointsPerSegment; j++) {
-        path.push(CatmullRom.interpolate(p0, p1, p2, p3, j * step));
+        path.push(CatmullRom.interpolate(p0, p1, p2, p3, j * step, tension));
       }
     }
     
     // Add the final waypoint
     path.push(waypoints[lastIndex]);
+    
+    // Debug log result
+    console.log('🔧 [CatmullRom.createPath] Returning path with:', {
+      pathLength: path.length,
+      firstPoint: path[0],
+      lastPoint: path[path.length - 1],
+      hasNaN: path.some(p => isNaN(p.x) || isNaN(p.y))
+    });
     
     return path;
   }

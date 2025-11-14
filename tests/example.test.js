@@ -313,7 +313,7 @@ describe('CatmullRom Splines', () => {
     const p2 = { x: 200, y: 100 };
     const p3 = { x: 300, y: 100 };
     
-    const mid = CatmullRom.interpolate(p0, p1, p2, p3, 0.5);
+    const mid = CatmullRom.interpolate(p0, p1, p2, p3, 0.5, 0.5);
     
     expect(mid.x).toBeGreaterThan(100);
     expect(mid.x).toBeLessThan(200);

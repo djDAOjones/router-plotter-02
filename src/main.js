@@ -303,6 +303,38 @@ class RoutePlotter {
       });
     });
     
+    // ===== SPLASH SCREEN EVENT LISTENERS =====
+    // Must be OUTSIDE commented blocks!
+    console.log('🔧 [Splash] Setting up event listeners:', {
+      splash: !!this.elements.splash,
+      splashClose: !!this.elements.splashClose,
+      splashDontShow: !!this.elements.splashDontShow
+    });
+    
+    if (this.elements.splashClose) {
+      this.elements.splashClose.addEventListener('click', (e) => {
+        console.log('🎯 [Splash] Close button clicked');
+        e.stopPropagation();
+        this.hideSplash();
+      });
+    } else {
+      console.error('❌ [Splash] Close button element not found!');
+    }
+    
+    if (this.elements.splash) {
+      this.elements.splash.addEventListener('click', (e) => {
+        console.log('🎯 [Splash] Background clicked, target:', e.target.id || e.target.className);
+        if (e.target === this.elements.splash) {
+          console.log('✅ [Splash] Closing splash (background click)');
+          this.hideSplash();
+        } else {
+          console.log('❌ [Splash] Not closing (clicked on content)');
+        }
+      });
+    } else {
+      console.error('❌ [Splash] Splash element not found!');
+    }
+    
     /* Canvas events now handled by InteractionHandler
     this.canvas.addEventListener('mousedown', (e) => this.handleMouseDown(e));
     this.canvas.addEventListener('mousemove', (e) => this.handleMouseMove(e));
@@ -498,10 +530,6 @@ class RoutePlotter {
         this.eventBus.emit('waypoint:style-changed', this.selectedWaypoint);
       }
     });
-    
-    // Splash screen - close on any click
-    this.elements.splashClose.addEventListener('click', () => this.hideSplash());
-    this.elements.splash.addEventListener('click', () => this.hideSplash());
     
     // Always use constant-speed mode now (animation mode dropdown removed)
     // Animation speed now handled by UIController -> EventBus -> animation:speed-change event
@@ -1736,13 +1764,16 @@ class RoutePlotter {
   }
   
   showSplash() {
+    console.log('📖 [Splash] Showing splash screen');
     this.elements.splash.style.display = 'flex';
   }
   
   hideSplash() {
+    console.log('🚫 [Splash] Hiding splash screen');
     this.elements.splash.style.display = 'none';
     
     if (this.elements.splashDontShow.checked) {
+      console.log('✅ [Splash] Marking as "don\'t show again"');
       this.storageService.markSplashShown();
     }
   }
