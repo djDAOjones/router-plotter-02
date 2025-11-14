@@ -7,11 +7,9 @@
     "start": "node build.js --watch --serve",
     "dev": "node build.js --watch --serve",
     "build": "NODE_ENV=production node build.js",
-    "build:watch": "node build.js --watch",
-    "build:analyze": "NODE_ENV=production node build.js --analyze",
+    "build:deploy": "npm run build && rm -rf docs && cp -r dist docs",
     "test": "vitest run",
     "test:watch": "vitest watch",
-    "test:coverage": "vitest run --coverage",
     "serve": "python3 -m http.server 3000",
     "serve:dist": "cd dist && python3 -m http.server 3000"
   },

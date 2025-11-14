@@ -1,100 +1,47 @@
 # Route Plotter v3
 
-An interactive route plotting and animation tool with WCAG 2.2 AAA compliance.
+Interactive path animation tool for creating animated routes on images.
 
-🔗 **[Live Demo on GitHub Pages](https://djdaojones.github.io/router-plotter-02/)**
+🔗 **[Live Demo](https://djdaojones.github.io/router-plotter-02/)**
 
-## 🚀 Features
+## 🚀 Quick Start
 
-### Core Functionality
+### Development
 
-- **Interactive Waypoint System**: Click to add major waypoints, Shift+click for minor waypoints
-- **Smooth Path Animation**: Catmull-Rom spline interpolation for natural curves
-- **Visual Effects**: Pulse and ripple beacon effects with customizable colors
-- **Auto-save**: Automatically preserves your work in localStorage
+```bash
+npm install          # Install dependencies
+npm run dev          # Start dev server at http://localhost:3000
+```
 
-### Styling & Customization
+### Production Build
 
-- 🎨 Line color picker and thickness control
-- 📏 Waypoint size adjustment
-- ✨ Beacon style selector (None/Pulse/Ripple)
-- 🏃 Animation speed control
-
-### Accessibility Features
-
-- **WCAG 2.2 AAA Compliant**: Meets highest accessibility standards
-- **Full Keyboard Navigation**: Complete functionality without mouse
-- **Screen Reader Support**: ARIA labels and live regions
-- **Responsive Design**: Works on all devices
-
-## 🎮 Controls
-
-### Mouse
-
-- **Click**: Add major waypoint
-- **Shift+Click**: Add minor waypoint  
-- **Drag**: Move waypoints
-- **Right-click**: Delete waypoint
-
-### Keyboard
-
-- **Space**: Play/pause animation
-- **Arrow Keys**: Nudge selected waypoint
-- **Delete**: Remove selected waypoint
-- **Escape**: Deselect waypoint
+```bash
+npm run build        # Create production build in dist/
+npm run build:deploy # Build and update GitHub Pages docs/
+```
 
 ## 📁 Project Structure
 
-```plaintext
-/
-├── index.html          # Main HTML file
-├── src/
-│   └── main.js        # Core application logic
-├── styles/
-│   └── main.css       # Styles with WCAG AAA colors
-├── package.json       # Project metadata
-└── README.md          # This file
+```text
+src/
+├── main.js               # Main application entry
+├── config/constants.js   # Configuration values
+├── controllers/          # UI and animation controllers
+├── handlers/             # Event handlers
+├── models/               # Data models
+├── services/             # Business logic services
+├── utils/                # Utility functions
+└── workers/              # Web Workers for performance
 ```
 
-## 🌐 Live Demo
+## ⚙️ Key Settings
 
-Visit the live demo at: [https://djdaojones.github.io/router-plotter-02/](https://djdaojones.github.io/router-plotter-02/)
+Edit `src/config/constants.js`:
 
-## 💻 Development
+- `PATH.DEFAULT_TENSION`: 0.2 (curve tightness, lower = tighter)
+- `ANIMATION.DEFAULT_SPEED`: 400 px/s
+- `RENDERING.DEFAULT_PATH_COLOR`: '#FF6B6B'
 
-### Quick Start
+## 📄 License
 
-```bash
-# Clone the repository
-git clone https://github.com/djDAOjones/router-plotter-02.git
-cd router-plotter-02
-
-# Start local server
-python3 -m http.server 3000
-```
-
-Open [http://localhost:3000](http://localhost:3000) in your browser.
-
-### Alternative Server Options
-
-```bash
-# Using Node.js
-npx serve .
-
-# Using PHP
-php -S localhost:3000
-```
-
-## 📝 License
-
-MIT License - see LICENSE file for details
-
-## 👤 Author
-
-Joe Bell - University of Nottingham
-
-## 🔗 Links
-
-- **Repository**: [https://github.com/djDAOjones/router-plotter-02](https://github.com/djDAOjones/router-plotter-02)
-- **Live Demo**: [https://djdaojones.github.io/router-plotter-02/](https://djdaojones.github.io/router-plotter-02/)
-- **Issues**: [https://github.com/djDAOjones/router-plotter-02/issues](https://github.com/djDAOjones/router-plotter-02/issues)
+MIT
